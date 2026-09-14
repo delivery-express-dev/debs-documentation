@@ -1,0 +1,190 @@
+---
+id: create-supplier
+title: Create Supplier
+sidebar_label: Create Supplier
+sidebar_position: 3
+description: Create an Allow MENA supplier together with its owning user account.
+---
+
+# Create Supplier
+
+<Endpoint
+  method="POST"
+  path="/api/v1/web-app/suppliers"
+  auth="Bearer token"
+  permission="create-supplier"
+/>
+
+Creates a supplier **and the user account that owns it** in one call. The email and password you
+supply become that user's portal login, so the email must not already be in use.
+
+## Request body
+
+<ParamTable
+  params={[
+    { name: 'supplierName', type: 'string', required: true, description: 'Supplier name.', example: '"Bright Foods"' },
+    { name: 'email', type: 'string', required: true, description: "The owning user's login email. Must be unique across all users.", example: '"noor@brightfoods.example"' },
+    { name: 'password', type: 'string', required: true, description: 'Password for the owning user account.' },
+    { name: 'confirmPassword', type: 'string', required: true, description: 'Must match password exactly, or the request is rejected.' },
+    { name: 'firstName', type: 'string', required: true, description: "Owning user's first name.", example: '"Noor"' },
+    { name: 'lastName', type: 'string', required: true, description: "Owning user's last name.", example: '"Hassan"' },
+    { name: 'contactPerson', type: 'string', required: true, description: 'Named contact at the supplier.', example: '"Noor Hassan"' },
+    { name: 'mobile', type: 'string', required: true, description: 'Mobile number. Must be exactly 8 digits.', example: '"55112233"' },
+    { name: 'country', type: 'integer', required: true, description: <>Country id. Fetch valid ids from <a href="/api/operations/reference-data#countries">Countries</a>.</>, example: '1' },
+    { name: 'preferredLanguage', type: 'integer', required: true, description: 'Language id for the owning user account.', example: '1' },
+    { name: 'businessTypes', type: 'array<integer>', required: true, description: <>Business type ids. Fetch valid ids from <a href="/api/operations/reference-data#business-types">Business Types</a>.</>, example: '[3]' },
+    { name: 'logoId', type: 'integer', required: true, description: 'Id of a previously uploaded logo file.', example: '204' },
+    { name: 'status', type: 'boolean', required: true, description: 'Whether the supplier starts active.', example: 'true' },
+  ]}
+/>
+
+:::note Every field is required
+Unlike [Update Supplier](/api/operations/suppliers/update-supplier), which is a partial update, all
+thirteen fields must be present. Unknown fields are rejected rather than ignored.
+:::
+
+## Request example
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="cURL">
+
+```bash
+curl --request POST \
+  --url 'https://sandboxapi.allowmena.com/api/v1/web-app/suppliers' \
+  --header 'Authorization: Bearer YOUR_TOKEN' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "supplierName": "Bright Foods",
+    "email": "noor@brightfoods.example",
+    "password": "YOUR_PASSWORD",
+    "confirmPassword": "YOUR_PASSWORD",
+    "firstName": "Noor",
+    "lastName": "Hassan",
+    "contactPerson": "Noor Hassan",
+    "mobile": "55112233",
+    "country": 1,
+    "preferredLanguage": 1,
+    "businessTypes": [3],
+    "logoId": 204,
+    "status": true
+  }'
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+import os
+import requests
+
+response = requests.post(
+    "https://sandboxapi.allowmena.com/api/v1/web-app/suppliers",
+    headers={
+        "Authorization": f"Bearer {os.environ['ALLOW_TOKEN']}",
+        "Content-Type": "application/json",
+    },
+    json={
+        "supplierName": "Bright Foods",
+        "email": "noor@brightfoods.example",
+        "password": os.environ["NEW_SUPPLIER_PASSWORD"],
+        "confirmPassword": os.environ["NEW_SUPPLIER_PASSWORD"],
+        "firstName": "Noor",
+        "lastName": "Hassan",
+        "contactPerson": "Noor Hassan",
+        "mobile": "55112233",
+        "country": 1,
+        "preferredLanguage": 1,
+        "businessTypes": [3],
+        "logoId": 204,
+        "status": True,
+    },
+    timeout=30,
+)
+response.raise_for_status()
+
+print(response.json()["data"]["id"])
+```
+
+</TabItem>
+<TabItem value="js" label="JavaScript">
+
+```javascript
+const password = process.env.NEW_SUPPLIER_PASSWORD;
+
+const response = await fetch('https://sandboxapi.allowmena.com/api/v1/web-app/suppliers', {
+  method: 'POST',
+  headers: {
+    Authorization: `Bearer ${process.env.ALLOW_TOKEN}`,
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    supplierName: 'Bright Foods',
+    email: 'noor@brightfoods.example',
+    password,
+    confirmPassword: password,
+    firstName: 'Noor',
+    lastName: 'Hassan',
+    contactPerson: 'Noor Hassan',
+    mobile: '55112233',
+    country: 1,
+    preferredLanguage: 1,
+    businessTypes: [3],
+    logoId: 204,
+    status: true,
+  }),
+});
+
+const body = await response.json();
+console.log(body.data.id);
+```
+
+</TabItem>
+</Tabs>
+
+## Response
+
+`201 Created` — the full supplier, same shape as
+[Get Supplier](/api/operations/suppliers/get-supplier).
+
+```json
+{
+  "status": true,
+  "status_code": 201,
+  "message": "Supplier Created successfully.",
+  "data": {
+    "id": 12,
+    "supplierName": "Bright Foods",
+    "contactPerson": "Noor Hassan",
+    "logo": "https://files.allowmena.com/logo/supplier/bright-foods.png",
+    "status": true,
+    "countryDetails": { "id": 1, "name": "Kuwait", "code": 965 },
+    "businessTypeDetails": [{ "id": 3, "name": "Restaurant" }],
+    "userDetails": {
+      "id": 88,
+      "firstName": "Noor",
+      "lastName": "Hassan",
+      "fullName": "Noor Hassan",
+      "email": "noor@brightfoods.example",
+      "mobile": "55112233",
+      "roleDetails": { "id": 4, "name": "Supplier Admin", "slug": "supplier_admin" },
+      "preferredLanguage": { "id": 1, "label": "English", "code": "en" }
+    }
+  }
+}
+```
+
+## Errors
+
+<ErrorTable
+  errors={[
+    { status: 400, code: 'BAD_REQUEST', when: <><code>Passwords do not match</code> — <code>password</code> and <code>confirmPassword</code> differ.</> },
+    { status: 400, code: 'BAD_REQUEST', when: <><code>Mobile number must be exactly 8 digits</code>.</> },
+    { status: 400, code: 'BAD_REQUEST', when: <><code>Invalid country</code> — no country with that id.</> },
+    { status: 400, code: 'BAD_REQUEST', when: <><code>Invalid preferred language</code> — no language with that id.</> },
+    { status: 401, code: 'TOKEN_MISSING', when: <>No <code>Authorization</code> header.</> },
+    { status: 403, code: 'FORBIDDEN', when: <>The token lacks <code>create-supplier</code>.</> },
+    { status: 409, code: 'CONFLICT', when: <><code>A supplier with this email already exists</code> — the email is taken.</> },
+    { status: 422, code: 'VALIDATION_ERROR', when: <>A required field is missing, or an unknown field was sent.</> },
+    { status: 500, code: 'INTERNAL_SERVER_ERROR', when: <>Unhandled server error.</> },
+  ]}
+/>

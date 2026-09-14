@@ -1,0 +1,179 @@
+---
+id: driver-attendance
+title: Get Driver Attendance Report
+sidebar_label: Driver Attendance
+sidebar_position: 3
+description: Per-shift attendance report for one driver — check-in and check-out times, lateness, breaks, working hours and order counts.
+---
+
+# Get Driver Attendance Report
+
+<Endpoint
+  method="GET"
+  path="/api/v1/web-app/reports/driver-attendance"
+  auth="Bearer token"
+  permission="read-driver_attendance_report"
+/>
+
+Returns a per-shift attendance record for **one** driver over a date range: when they were scheduled,
+when they actually checked in and out, how late they were, how long they spent on break, and how many
+orders they delivered or had cancelled.
+
+Use it for payroll, shift compliance and absence tracking.
+
+## Query parameters
+
+All three are required. This endpoint is **not paginated** — it returns every row in the range.
+
+<ParamTable
+  params={[
+    { name: 'driver_id', type: 'integer', required: true, description: 'The driver to report on. One driver per request.', example: '7' },
+    { name: 'start_date', type: 'string (date)', required: true, description: 'Start of the date range, YYYY-MM-DD.', example: '2026-09-01' },
+    { name: 'end_date', type: 'string (date)', required: true, description: 'End of the date range, YYYY-MM-DD.', example: '2026-09-10' },
+  ]}
+/>
+
+:::note `snake_case` parameters here
+This endpoint spells its parameters `driver_id`, `start_date` and `end_date`. The
+[driver performance report](/api/operations/reports/driver-performance) next door uses `startDate`
+and `endDate`. They are not interchangeable.
+:::
+
+## Request example
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="cURL">
+
+```bash
+curl --request GET \
+  --url 'https://sandboxapi.allowmena.com/api/v1/web-app/reports/driver-attendance?driver_id=7&start_date=2026-09-01&end_date=2026-09-10' \
+  --header 'Authorization: Bearer YOUR_TOKEN'
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+import os
+import requests
+
+response = requests.get(
+    "https://sandboxapi.allowmena.com/api/v1/web-app/reports/driver-attendance",
+    headers={"Authorization": f"Bearer {os.environ['ALLOW_TOKEN']}"},
+    params={"driver_id": 7, "start_date": "2026-09-01", "end_date": "2026-09-10"},
+    timeout=30,
+)
+response.raise_for_status()
+
+report = response.json()["data"]
+print(report["driver_info"]["name"])
+for row in report["rows"]:
+    print(row["date"], row["checked_in_at"], row["late_minutes"])
+```
+
+</TabItem>
+<TabItem value="js" label="JavaScript">
+
+```javascript
+const url = new URL(
+  'https://sandboxapi.allowmena.com/api/v1/web-app/reports/driver-attendance',
+);
+url.searchParams.set('driver_id', '7');
+url.searchParams.set('start_date', '2026-09-01');
+url.searchParams.set('end_date', '2026-09-10');
+
+const response = await fetch(url, {
+  headers: { Authorization: `Bearer ${process.env.ALLOW_TOKEN}` },
+});
+
+const report = (await response.json()).data;
+console.log(report.driver_info.name);
+for (const row of report.rows) {
+  console.log(row.date, row.checked_in_at, row.late_minutes);
+}
+```
+
+</TabItem>
+</Tabs>
+
+## Response
+
+`200 OK`
+
+```json
+{
+  "status": true,
+  "status_code": 200,
+  "message": "Attendance report fetched successfully",
+  "data": {
+    "driver_info": {
+      "id": 7,
+      "name": "John Smith",
+      "vehicle_type": "Motorcycle",
+      "national_id": "290010100123"
+    },
+    "rows": [
+      {
+        "date": "2026-09-01",
+        "shift_start_time": "08:00",
+        "shift_end_time": "17:00",
+        "checked_in_at": "08:12",
+        "checked_out_at": "17:03",
+        "late_minutes": 12,
+        "break_duration": "00:45",
+        "temp_break_duration": "00:10",
+        "absent": 0,
+        "total_working_hours": "08:06",
+        "total_cancel_orders": 1,
+        "total_delivered_orders": 14
+      }
+    ]
+  }
+}
+```
+
+<ParamTable
+  title="data.driver_info"
+  params={[
+    { name: 'id', type: 'integer', required: true, description: 'Driver id.' },
+    { name: 'name', type: 'string', required: true, description: 'Driver name.' },
+    { name: 'vehicle_type', type: 'string', required: true, description: "The driver's vehicle type." },
+    { name: 'national_id', type: 'string', required: true, description: "The driver's national id." },
+  ]}
+/>
+
+<ParamTable
+  title="data.rows[] — one row per shift"
+  params={[
+    { name: 'date', type: 'string (date)', required: true, description: 'The shift date, YYYY-MM-DD.' },
+    { name: 'shift_start_time', type: 'string', required: true, description: 'Scheduled start.', example: '"08:00"' },
+    { name: 'shift_end_time', type: 'string', required: true, description: 'Scheduled end.', example: '"17:00"' },
+    { name: 'checked_in_at', type: 'string | null', required: false, description: 'Actual check-in. Null if the driver never checked in.' },
+    { name: 'checked_out_at', type: 'string | null', required: false, description: 'Actual check-out. Null if the driver never checked out.' },
+    { name: 'late_minutes', type: 'integer', required: false, default: '0', description: 'Minutes between the scheduled start and the actual check-in.' },
+    { name: 'break_duration', type: 'string', required: false, default: "'00:00'", description: 'Total scheduled break time taken, as HH:MM.' },
+    { name: 'temp_break_duration', type: 'string', required: false, default: "'00:00'", description: 'Total unscheduled (temporary) break time taken, as HH:MM.' },
+    { name: 'absent', type: 'integer', required: false, default: '1', values: ['0', '1'], description: <><code>1</code> — absent. <code>0</code> — present. Note the default is <code>1</code>: a shift with no check-in counts as absent.</> },
+    { name: 'total_working_hours', type: 'string', required: false, default: "'00:00'", description: 'Hours worked, as HH:MM.' },
+    { name: 'total_cancel_orders', type: 'integer', required: false, default: '0', description: 'Orders cancelled during the shift.' },
+    { name: 'total_delivered_orders', type: 'integer', required: false, default: '0', description: 'Orders delivered during the shift.' },
+  ]}
+/>
+
+:::note Durations are `HH:MM` strings, not numbers
+`break_duration`, `temp_break_duration` and `total_working_hours` are formatted strings. Only
+`late_minutes` is a number. Parse accordingly.
+:::
+
+## Errors
+
+<ErrorTable
+  errors={[
+    { status: 401, code: 'TOKEN_MISSING', when: <>No <code>Authorization</code> header.</> },
+    { status: 401, code: 'TOKEN_EXPIRED', when: <>The access token has expired.</> },
+    { status: 403, code: 'FORBIDDEN', when: <>The token lacks <code>read-driver_attendance_report</code>.</> },
+    { status: 404, code: 'NOT_FOUND', when: <><code>Driver not found</code> — no driver with that id.</> },
+    { status: 422, code: 'VALIDATION_ERROR', when: <>A required parameter is missing, or a date is not <code>YYYY-MM-DD</code>.</> },
+    { status: 500, code: 'INTERNAL_SERVER_ERROR', when: <>Unhandled server error.</> },
+  ]}
+/>

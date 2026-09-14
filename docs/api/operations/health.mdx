@@ -1,0 +1,52 @@
+---
+id: health
+title: Health Check
+sidebar_label: Health Check
+sidebar_position: 10
+description: Liveness probe for the Allow MENA API service.
+---
+
+# Health Check
+
+<Endpoint method="GET" path="/api/v1/health" publicAccess />
+
+Liveness probe. Returns `200` with a fixed body whenever the service process is up.
+
+Intended for load balancers, container orchestrators and uptime monitors.
+
+## Request
+
+No authentication, no parameters, no body.
+
+```bash
+curl --request GET --url 'https://sandboxapi.allowmena.com/api/v1/health'
+```
+
+## Response
+
+`200 OK`
+
+```json
+{
+  "status": "ok"
+}
+```
+
+<ParamTable
+  params={[
+    { name: 'status', type: 'string', required: true, description: <>Always the literal <code>"ok"</code>.</> },
+  ]}
+/>
+
+:::note Not the standard envelope
+This is the one endpoint that does not use the
+[success envelope](/getting-started/response-format). There is no `data` wrapper, no `message` and
+no `status_code` — and `status` is the **string** `"ok"`, not a boolean. A generic client that
+assumes the envelope will mis-parse it.
+:::
+
+:::caution Liveness, not readiness
+The handler returns a constant. It does not check the database, Redis, or any downstream service, so
+a `200` here means the process is accepting connections — not that it can serve a request that
+touches data.
+:::

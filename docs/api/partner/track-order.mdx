@@ -1,0 +1,176 @@
+---
+id: track-order
+title: Track Order
+sidebar_label: Track Order
+sidebar_position: 6
+description: Read an Allow MENA order's current status, the assigned driver's live position and the estimated time to delivery.
+---
+
+# Track Order
+
+<Endpoint method="GET" path="/api/v2/external/orders/{order_id}/tracking" auth="x-api-key header" />
+
+Returns an order's current status and, while it is in flight, the assigned driver's contact details,
+last known position and estimated time to delivery.
+
+Use it to render a live tracking view for your customer, or to reconcile an order whose webhook you
+missed. For ongoing updates prefer [webhooks](/api/webhooks/overview) — they push each change
+instead of making you poll.
+
+## Path parameters
+
+<ParamTable
+  params={[
+    { name: 'order_id', type: 'integer', required: true, description: <>Platform order id, as returned by <a href="/api/partner/create-order-v3">Create Order</a>. Must belong to the branch behind your API key.</>, example: '59332' },
+  ]}
+/>
+
+This endpoint takes no query parameters and no request body.
+
+## Request example
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="cURL">
+
+```bash
+curl --request GET \
+  --url 'https://sandboxapi.allowmena.com/api/v2/external/orders/59332/tracking' \
+  --header 'x-api-key: YOUR_API_KEY'
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+import os
+import requests
+
+response = requests.get(
+    "https://sandboxapi.allowmena.com/api/v2/external/orders/59332/tracking",
+    headers={"x-api-key": os.environ["ALLOW_API_KEY"]},
+    timeout=30,
+)
+
+body = response.json()
+if not body["status"]:
+    raise RuntimeError(f"Tracking failed ({response.status_code}): {body['message']}")
+
+tracking = body["data"]
+print("status:", tracking["order_status"]["slug"])
+
+driver = tracking["driver"]
+if driver:
+    eta_seconds = driver["estimated_time_of_delivery"]
+    print(f"{driver['name']} — about {eta_seconds // 60} minutes away")
+```
+
+</TabItem>
+<TabItem value="js" label="JavaScript">
+
+```javascript
+const response = await fetch(
+  'https://sandboxapi.allowmena.com/api/v2/external/orders/59332/tracking',
+  { headers: { 'x-api-key': process.env.ALLOW_API_KEY } },
+);
+
+const body = await response.json();
+if (!body.status) throw new Error(`Tracking failed (${response.status}): ${body.message}`);
+
+const { driver, order_status: orderStatus } = body.data;
+console.log('status:', orderStatus.slug);
+
+if (Object.keys(driver).length > 0) {
+  console.log(`${driver.name} — about ${Math.round(driver.estimated_time_of_delivery / 60)} minutes away`);
+}
+```
+
+</TabItem>
+</Tabs>
+
+## Response
+
+`200 OK`
+
+```json title="Driver assigned and en route"
+{
+  "status": true,
+  "message": "Success",
+  "data": {
+    "driver": {
+      "name": "John Smith",
+      "country_code": "+965",
+      "mobile": "98000001",
+      "location": { "latitude": 29.3051261, "longitude": 47.800077 },
+      "estimated_time_of_delivery": 520
+    },
+    "order_status": { "name": "Assigned", "slug": "assigned" }
+  }
+}
+```
+
+```json title="No driver to report"
+{
+  "status": true,
+  "message": "Success",
+  "data": {
+    "driver": {},
+    "order_status": { "name": "Delivered", "slug": "delivered" }
+  }
+}
+```
+
+<ParamTable
+  title="data fields"
+  params={[
+    { name: 'driver', type: 'object', required: true, description: <>Driver details, or an empty object <code>{'{}'}</code>. See <a href="#when-driver-is-empty">When driver is empty</a>.</> },
+    { name: 'driver.name', type: 'string', required: false, description: "The driver's full name." },
+    { name: 'driver.country_code', type: 'string', required: false, description: 'Dialling code with a leading plus.', example: '"+965"' },
+    { name: 'driver.mobile', type: 'string', required: false, description: "The driver's mobile number, without the country code. Falls back to 0 when the driver record has no number." },
+    { name: 'driver.location', type: 'object', required: false, description: 'Last reported position. Both fields are null if the driver has not yet reported a location.' },
+    { name: 'driver.location.latitude', type: 'number | null', required: false, description: 'Decimal degrees.' },
+    { name: 'driver.location.longitude', type: 'number | null', required: false, description: 'Decimal degrees.' },
+    { name: 'driver.estimated_time_of_delivery', type: 'integer', required: false, description: 'Seconds remaining until the estimated delivery time. Never negative — a late order reports 0. Reports 0 when no live estimate has been computed yet.' },
+    { name: 'order_status', type: 'object', required: true, description: 'The order\'s current status.' },
+    { name: 'order_status.name', type: 'string', required: true, description: 'Display label.', example: '"Driver Reached"' },
+    { name: 'order_status.slug', type: 'string', required: true, description: <>Stable machine-readable status. Branch on this, not on <code>name</code>. See <a href="/concepts/enumerations#order-status">Order status</a>.</>, example: '"driver_reached"' },
+  ]}
+/>
+
+:::caution `estimated_time_of_delivery` is in seconds
+The value is a count of **seconds**, not minutes. The webhook payloads, by contrast, report their
+ETAs in minutes — see [Driver Assigned](/api/webhooks/driver-assigned). Divide by 60 before showing
+minutes to a customer.
+:::
+
+### When `driver` is empty
+
+`driver` is `{}` — not `null`, not omitted — in either of these cases:
+
+1. **The order is in a terminal or paused state**: `Cancelled`, `Delivered` or `Hold`. Driver
+   details are deliberately withheld once the delivery is over.
+2. **No driver is assigned yet**: the order is still `Created`, `Pending`, `Scheduled` or `Stacked`.
+
+So an empty `driver` object is normal, not an error. Check `order_status.slug` to tell which case
+you are in.
+
+## Errors
+
+<ErrorTable
+  errors={[
+    { status: 404, when: <><code>Order not found</code> — no order with that id belongs to the branch behind your API key. Another branch's order id is reported as not found, not as forbidden.</> },
+    { status: 401, when: <>Missing, unknown, revoked or expired <code>x-api-key</code>.</> },
+    { status: 500, when: <><code>Something went wrong</code> — unhandled server error.</> },
+  ]}
+/>
+
+## Differences from the published Postman collection
+
+:::warning
+Two differences worth knowing:
+
+- The collection's "404 - Order not found" example is **saved with status code 400**. The backend
+  returns a genuine **404** for this endpoint. (The v1
+  [Get Order Status](/api/partner/order-status) endpoint *does* return 400 for a missing order —
+  that is likely where the collection's 400 came from.)
+- The collection omits the `x-api-key` header from this request. It is required.
+:::

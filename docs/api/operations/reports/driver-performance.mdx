@@ -1,0 +1,239 @@
+---
+id: driver-performance
+title: Get Driver Performance Report
+sidebar_label: Driver Performance
+sidebar_position: 1
+description: Per-order driver performance report with stage-by-stage delivery durations, filterable by supplier, driver and order status, with CSV export.
+---
+
+# Get Driver Performance Report
+
+<Endpoint
+  method="GET"
+  path="/api/v1/web-app/reports/driver-performance"
+  auth="Bearer token"
+  permission="read-driver_performance_report"
+/>
+
+Returns a paginated, **per-order** breakdown of how long each stage of delivery took — from the
+order entering Pending through to it being delivered — for a chosen date range.
+
+Use it to find where time is lost across a fleet: orders waiting to be assigned, drivers slow to
+accept, long dwell at pickup, or repeated holds. Pass `export=true` to stream the full result set as
+a CSV instead of paginated JSON.
+
+## Query parameters
+
+<ParamTable
+  title="Date range"
+  params={[
+    { name: 'startDate', type: 'string (date)', required: false, default: 'today', description: 'Start of the date range, YYYY-MM-DD.', example: '2026-09-01' },
+    { name: 'endDate', type: 'string (date)', required: false, default: 'today', description: 'End of the date range, YYYY-MM-DD.', example: '2026-09-10' },
+  ]}
+/>
+
+<ParamTable
+  title="Filters — all repeatable"
+  params={[
+    { name: 'supplierIds', type: 'integer (repeatable)', required: false, description: 'Restrict to orders from these suppliers. Repeat the parameter once per id.', example: 'supplierIds=12&supplierIds=45' },
+    { name: 'driverIds', type: 'integer (repeatable)', required: false, description: <>Restrict to orders <strong>delivered by</strong> these drivers. Orders never delivered have a null driver and will not match. Populate the picker with <a href="/api/operations/reports/driver-performance-drivers">List Report Drivers</a>.</>, example: 'driverIds=7&driverIds=9' },
+    { name: 'orderStatusIds', type: 'integer (repeatable)', required: false, description: <>Restrict to these order statuses, by numeric id. See <a href="/concepts/enumerations#order-status">Order status</a>.</>, example: 'orderStatusIds=7&orderStatusIds=8' },
+  ]}
+/>
+
+<ParamTable
+  title="Output"
+  params={[
+    { name: 'export', type: 'boolean', required: false, default: 'false', description: 'If true, stream the full unpaginated result set as a CSV file instead of returning JSON. Pagination parameters are ignored in this mode.', example: 'true' },
+    { name: 'limit', type: 'integer', required: false, default: '8', description: 'Page size, between 1 and 200.', example: '50' },
+    { name: 'offset', type: 'integer', required: false, default: '0', description: 'Records to skip.', example: '50' },
+    { name: 'noPage', type: 'boolean', required: false, default: 'false', description: 'If true, return every matching row without pagination. Note the camelCase spelling here — the reference-data endpoints spell it no_page.', example: 'true' },
+  ]}
+/>
+
+:::caution Repeat the parameter; do not comma-separate
+`supplierIds`, `driverIds` and `orderStatusIds` are array parameters. Send
+`?supplierIds=12&supplierIds=45`. A comma-separated `?supplierIds=12,45` is rejected as a validation
+error, because `12,45` is not an integer.
+:::
+
+## Request example
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="cURL">
+
+```bash
+curl --request GET \
+  --url 'https://sandboxapi.allowmena.com/api/v1/web-app/reports/driver-performance?startDate=2026-09-01&endDate=2026-09-10&supplierIds=12&supplierIds=45&limit=50' \
+  --header 'Authorization: Bearer YOUR_TOKEN'
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+import os
+import requests
+
+# A list value makes requests repeat the parameter: supplierIds=12&supplierIds=45
+params = {
+    "startDate": "2026-09-01",
+    "endDate": "2026-09-10",
+    "supplierIds": [12, 45],
+    "limit": 50,
+}
+
+response = requests.get(
+    "https://sandboxapi.allowmena.com/api/v1/web-app/reports/driver-performance",
+    headers={"Authorization": f"Bearer {os.environ['ALLOW_TOKEN']}"},
+    params=params,
+    timeout=60,
+)
+response.raise_for_status()
+
+body = response.json()
+print(f"{body['count']} orders in range")
+for row in body["data"]:
+    print(row["orderId"], row["driverName"], row["totalDeliveryTimeMinutes"])
+```
+
+</TabItem>
+<TabItem value="js" label="JavaScript">
+
+```javascript
+const url = new URL(
+  'https://sandboxapi.allowmena.com/api/v1/web-app/reports/driver-performance',
+);
+url.searchParams.set('startDate', '2026-09-01');
+url.searchParams.set('endDate', '2026-09-10');
+url.searchParams.set('limit', '50');
+// append, not set — each id is its own occurrence of the parameter
+for (const id of [12, 45]) url.searchParams.append('supplierIds', String(id));
+
+const response = await fetch(url, {
+  headers: { Authorization: `Bearer ${process.env.ALLOW_TOKEN}` },
+});
+
+const body = await response.json();
+console.log(`${body.count} orders in range`);
+for (const row of body.data) {
+  console.log(row.orderId, row.driverName, row.totalDeliveryTimeMinutes);
+}
+```
+
+</TabItem>
+</Tabs>
+
+### Exporting to CSV
+
+```bash
+curl --request GET \
+  --url 'https://sandboxapi.allowmena.com/api/v1/web-app/reports/driver-performance?startDate=2026-09-01&endDate=2026-09-10&export=true' \
+  --header 'Authorization: Bearer YOUR_TOKEN' \
+  --output driver-performance.csv
+```
+
+The response is a CSV file stream, not the JSON envelope. Pagination parameters are ignored — the
+whole matching set is written.
+
+## Response
+
+`200 OK`
+
+```json
+{
+  "status": true,
+  "status_code": 200,
+  "message": "Driver performance report fetched successfully",
+  "data": [
+    {
+      "orderId": 19444,
+      "driverId": 7,
+      "driverName": "John Smith",
+      "vehicleType": "Motorcycle",
+      "customerName": "Sara Al-Ali",
+      "customerPhone": "77669900",
+      "supplierName": "Bright Foods",
+      "branchName": "Salmiya",
+      "createdAt": "2026-09-01 10:14:02",
+      "deliveredAt": "2026-09-01 10:53:31",
+      "orderStatus": "Delivered",
+      "orderStatusSlug": "delivered",
+      "pendingToAssignedMinutes": 2.4,
+      "assignedToAcceptedMinutes": 0.8,
+      "acceptedToDriverReachedMinutes": 9.1,
+      "driverReachedToPickedUpMinutes": 3.2,
+      "holdCount": 0,
+      "holdDurationMinutes": 0,
+      "pickedUpToDeliveredMinutes": 23.9,
+      "totalDeliveryTimeMinutes": 39.4
+    }
+  ],
+  "links": {
+    "limit": 50,
+    "offset": 0,
+    "next": null,
+    "previous": null
+  },
+  "count": 1
+}
+```
+
+<ParamTable
+  title="data[] — identity"
+  params={[
+    { name: 'orderId', type: 'integer', required: true, description: 'The order this row reports on. One row per order.' },
+    { name: 'driverId', type: 'integer | null', required: false, description: 'The driver who actually delivered the order. Null when the order was never delivered.' },
+    { name: 'driverName', type: 'string | null', required: false, description: "The delivering driver's name, or null." },
+    { name: 'vehicleType', type: 'string | null', required: false, description: "The delivering driver's vehicle type, or null." },
+    { name: 'customerName', type: 'string | null', required: false, description: 'Customer name recorded on the order.' },
+    { name: 'customerPhone', type: 'string | null', required: false, description: 'Customer contact number recorded on the order.' },
+    { name: 'supplierName', type: 'string | null', required: false, description: 'Supplier that sent the order.' },
+    { name: 'branchName', type: 'string | null', required: false, description: 'Branch that fulfilled the order.' },
+    { name: 'createdAt', type: 'string | null', required: false, description: 'When the order was created.' },
+    { name: 'deliveredAt', type: 'string | null', required: false, description: 'When the order was delivered, or null if it never was.' },
+    { name: 'orderStatus', type: 'string', required: true, description: 'Current status display label.' },
+    { name: 'orderStatusSlug', type: 'string', required: true, description: 'Current status slug. Branch on this.' },
+  ]}
+/>
+
+<ParamTable
+  title="data[] — stage durations, in minutes"
+  params={[
+    { name: 'pendingToAssignedMinutes', type: 'number | null', required: false, description: 'Pending → Assigned. How long the order waited for a driver. Null if the stage never happened.' },
+    { name: 'assignedToAcceptedMinutes', type: 'number | null', required: false, description: 'Assigned → Accepted. How long the driver took to accept.' },
+    { name: 'acceptedToDriverReachedMinutes', type: 'number | null', required: false, description: 'Accepted → Driver Reached. Travel time to the pickup point.' },
+    { name: 'driverReachedToPickedUpMinutes', type: 'number | null', required: false, description: 'Driver Reached → Picked Up. Dwell time at pickup.' },
+    { name: 'holdCount', type: 'integer', required: true, default: '0', description: 'How many times the order was placed on hold.' },
+    { name: 'holdDurationMinutes', type: 'number', required: true, default: '0', description: 'Total minutes spent on hold across all holds.' },
+    { name: 'pickedUpToDeliveredMinutes', type: 'number | null', required: false, description: 'Picked Up → Delivered. Time on the road to the customer.' },
+    { name: 'totalDeliveryTimeMinutes', type: 'number | null', required: false, description: 'Total elapsed delivery time. Null for orders that were never delivered.' },
+  ]}
+/>
+
+:::note A null duration means the stage did not occur
+Stage fields are null rather than zero when the transition never happened — a cancelled order has no
+`pickedUpToDeliveredMinutes`. Do not treat null as `0` when averaging; exclude those rows.
+:::
+
+### The driver on each row is whoever delivered it
+
+Rows attribute the order to the driver who **actually delivered** it, not whoever it was first
+assigned to. Two consequences:
+
+- An order that was reassigned is credited to the final driver.
+- An order that was never delivered has `driverId: null` and **will not match a `driverIds`
+  filter** — filtering by driver silently excludes undelivered orders.
+
+## Errors
+
+<ErrorTable
+  errors={[
+    { status: 401, code: 'TOKEN_MISSING', when: <>No <code>Authorization</code> header.</> },
+    { status: 401, code: 'TOKEN_EXPIRED', when: <>The access token has expired.</> },
+    { status: 401, code: 'INVALID_TOKEN', when: <>Bad signature or a missing claim.</> },
+    { status: 403, code: 'FORBIDDEN', when: <>The token lacks <code>read-driver_performance_report</code>.</> },
+    { status: 422, code: 'VALIDATION_ERROR', when: <>A date is not <code>YYYY-MM-DD</code>, a filter id is not an integer (including a comma-separated list), or <code>limit</code> is outside 1–200.</> },
+    { status: 500, code: 'INTERNAL_SERVER_ERROR', when: <>Unhandled server error.</> },
+  ]}
+/>

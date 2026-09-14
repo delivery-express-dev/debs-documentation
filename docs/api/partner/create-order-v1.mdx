@@ -1,0 +1,226 @@
+---
+id: create-order-v1
+title: Create Order (v1)
+sidebar_label: Create Order (v1)
+sidebar_position: 4
+description: The legacy Allow MENA v1 create-order endpoint — on-demand orders with a drop-off and an optional pickup coordinate override.
+---
+
+# Create Order (v1)
+
+<Endpoint method="POST" path="/api/v1/external/orders" auth="x-api-key header" />
+
+The original create-order endpoint. It creates **on-demand orders only** and accepts a much smaller
+field set than v2 and v3.
+
+:::warning Legacy
+v1 is documented for integrations already running on it. New integrations should use
+[v3](/api/partner/create-order-v3). v1 cannot schedule deliveries, cannot carry pickup contact
+details, cart items, collection method or pickup instructions, and has no `avenue` field on the
+drop-off.
+:::
+
+## What v1 does not support
+
+| Capability | Available in |
+| --- | --- |
+| `schedule` — delivery windows | v2, v3 |
+| `pickup.name`, `pickup.mobile` and pickup address fields | v2, v3 |
+| `pickup.item_details` — cart line items | v2, v3 |
+| `pickup.collection_method` | v2, v3 |
+| Pickup instructions | v2 (notes), v3 (notes + attachments) |
+| `drop-off.avenue` | v2, v3 |
+
+Every order created through v1 is **On-Demand**.
+
+## Request body
+
+<ParamTable
+  title="Top level"
+  params={[
+    { name: 'orders', type: 'array<object>', required: true, description: 'The orders to create. Always an array.' },
+  ]}
+/>
+
+<ParamTable
+  title="Order object"
+  params={[
+    { name: 'drop-off', type: 'object', required: true, description: 'Where the order is delivered. Note the hyphen.' },
+    { name: 'supplier_reference_id', type: 'string', required: true, description: 'Your own identifier for the order. Echoed on the response and on every webhook.', example: '"SP-1001"' },
+    { name: 'payment_type', type: 'integer', required: true, values: ['1', '2'], description: <><code>1</code> — Cash on Delivery. <code>2</code> — Online, already paid.</>, example: '1' },
+    { name: 'total_amount', type: 'decimal', required: true, description: 'Order total, up to 11 digits with 3 decimal places.', example: '45.000' },
+    { name: 'pickup', type: 'object', required: false, description: 'Coordinate-only override of the collection point. Omit to collect from your branch address.' },
+  ]}
+/>
+
+<ParamTable
+  title="Pickup object — coordinates only"
+  params={[
+    { name: 'latitude', type: 'number', required: false, description: 'Decimal degrees. Must be sent together with longitude.', example: '29.320556' },
+    { name: 'longitude', type: 'number', required: false, description: 'Decimal degrees. Must be sent together with latitude.', example: '48.037866' },
+  ]}
+/>
+
+Any other key inside `pickup` is ignored by v1. Unlike v2 and v3, `name` and `mobile` are neither
+required nor read.
+
+<ParamTable
+  title="Drop-off object"
+  params={[
+    { name: 'latitude', type: 'number', required: false, description: 'Required together with longitude if area is omitted.', example: '29.320556' },
+    { name: 'longitude', type: 'number', required: false, description: 'Required together with latitude if area is omitted.', example: '48.037866' },
+    { name: 'area', type: 'string', required: false, description: 'Area name. Required if coordinates are omitted. An unrecognised name is accepted and flagged for operator review.', example: '"Jabriya"' },
+    { name: 'name', type: 'string', required: false, description: 'Customer name.' },
+    { name: 'mobile', type: 'string', required: false, description: 'Customer contact number.' },
+    { name: 'address_line1', type: 'string', required: false, description: 'First line of the address.' },
+    { name: 'address_line2', type: 'string', required: false, description: 'Second line of the address.' },
+    { name: 'block', type: 'string', required: false, description: 'Block name or number.' },
+    { name: 'street', type: 'string', required: false, description: 'Street name or number.' },
+    { name: 'building', type: 'string', required: false, description: 'Building name or number.' },
+    { name: 'floor', type: 'string', required: false, description: 'Floor.' },
+    { name: 'flat', type: 'string', required: false, description: 'Flat or apartment number.' },
+    { name: 'house_number', type: 'string', required: false, description: 'House number.' },
+    { name: 'landmark', type: 'string', required: false, description: 'Nearby landmark.' },
+    { name: 'notes', type: 'string', required: false, description: 'Delivery note recorded on the order.' },
+  ]}
+/>
+
+## Request example
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="cURL">
+
+```bash
+curl --request POST \
+  --url 'https://sandboxapi.allowmena.com/api/v1/external/orders' \
+  --header 'x-api-key: YOUR_API_KEY' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "orders": [
+      {
+        "pickup": { "latitude": 29.320556, "longitude": 48.037866 },
+        "drop-off": {
+          "latitude": 29.376,
+          "longitude": 47.977,
+          "area": "Jabriya",
+          "name": "Sara Al-Ali",
+          "mobile": "77669900",
+          "block": "Block 1",
+          "street": "4",
+          "building": "5",
+          "notes": "Leave with reception"
+        },
+        "supplier_reference_id": "SP-1001",
+        "payment_type": 1,
+        "total_amount": 45.000
+      }
+    ]
+  }'
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+import os
+import requests
+
+response = requests.post(
+    "https://sandboxapi.allowmena.com/api/v1/external/orders",
+    headers={"x-api-key": os.environ["ALLOW_API_KEY"], "Content-Type": "application/json"},
+    json={
+        "orders": [
+            {
+                "pickup": {"latitude": 29.320556, "longitude": 48.037866},
+                "drop-off": {
+                    "latitude": 29.376,
+                    "longitude": 47.977,
+                    "name": "Sara Al-Ali",
+                    "mobile": "77669900",
+                },
+                "supplier_reference_id": "SP-1001",
+                "payment_type": 1,
+                "total_amount": "45.000",
+            }
+        ]
+    },
+    timeout=30,
+)
+
+body = response.json()
+if not body["status"]:
+    raise RuntimeError(f"Order rejected ({response.status_code}): {body['message']}")
+
+print(body["data"])
+```
+
+</TabItem>
+<TabItem value="js" label="JavaScript">
+
+```javascript
+const response = await fetch('https://sandboxapi.allowmena.com/api/v1/external/orders', {
+  method: 'POST',
+  headers: { 'x-api-key': process.env.ALLOW_API_KEY, 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    orders: [
+      {
+        pickup: { latitude: 29.320556, longitude: 48.037866 },
+        'drop-off': {
+          latitude: 29.376,
+          longitude: 47.977,
+          name: 'Sara Al-Ali',
+          mobile: '77669900',
+        },
+        supplier_reference_id: 'SP-1001',
+        payment_type: 1,
+        total_amount: '45.000',
+      },
+    ],
+  }),
+});
+
+const body = await response.json();
+if (!body.status) throw new Error(`Order rejected (${response.status}): ${body.message}`);
+console.log(body.data);
+```
+
+</TabItem>
+</Tabs>
+
+## Response
+
+`200 OK`
+
+```json
+{
+  "status": true,
+  "message": "Success",
+  "data": [
+    { "order_id": 19444, "supplier_reference_id": "SP-1001" }
+  ]
+}
+```
+
+## Errors
+
+<ErrorTable
+  errors={[
+    { status: 400, when: <><code>Invalid Request</code> — the <code>drop-off</code> object is missing or empty.</> },
+    { status: 400, when: <><code>Invalid drop off details</code> — <code>drop-off</code> has neither a coordinate pair nor an <code>area</code>.</> },
+    { status: 400, when: <><code>Please provide customer location or area</code> — the drop-off resolved to neither a point nor a known area.</> },
+    { status: 400, when: <><code>Invalid customer location</code> — the drop-off coordinates fall outside every configured delivery area. (v2 and v3 word this <code>Invalid Drop off location</code>.)</> },
+    { status: 400, when: <><code>Invalid pickup details</code> — one pickup coordinate was sent without the other.</> },
+    { status: 400, when: <><code>Invalid request, the following pickup details are missing: …</code> — one of the two pickup coordinates is absent.</> },
+    { status: 400, when: <><code>Invalid request</code> — <code>supplier_reference_id</code> missing, or a field failed model validation.</> },
+    { status: 400, when: <><code>Invalid supplier</code> — the branch behind your key no longer exists.</> },
+    { status: 400, when: <><code>Vehicle type is not configured</code> — your branch has no vehicle type set.</> },
+    { status: 401, when: <>Missing, unknown, revoked or expired <code>x-api-key</code>.</> },
+    { status: 500, when: <><code>Something went wrong</code> — unhandled server error. This endpoint also returns <code>500</code> with the message <code>Something went wrong</code> if order-history writing fails after the orders were validated.</> },
+  ]}
+/>
+
+## Note on payment status
+
+v1 records every order's payment status as **Pending**, regardless of `payment_type`. v2 and v3
+instead mark `payment_type: 2` (Online) orders as **Completed** with nothing due on delivery. If
+your reconciliation reads payment status, this difference matters — another reason to move to v3.

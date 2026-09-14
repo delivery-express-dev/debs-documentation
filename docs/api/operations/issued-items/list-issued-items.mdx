@@ -1,0 +1,136 @@
+---
+id: list-issued-items
+title: List Issued Items
+sidebar_label: List Issued Items
+sidebar_position: 1
+description: Paginated catalogue of equipment that can be issued to Allow MENA drivers, filterable by search term and status.
+---
+
+# List Issued Items
+
+<Endpoint
+  method="GET"
+  path="/api/v1/web-app/issued-items"
+  auth="Bearer token"
+  permission="read-issued_items"
+/>
+
+Returns the catalogue of items that can be issued to drivers — helmets, jackets, phones, cash floats
+and so on. This is the master list; what an individual driver actually holds lives in the
+[driver issued-items ledger](/api/operations/driver-issued-items/list-driver-issued-items).
+
+## Query parameters
+
+<ParamTable
+  params={[
+    { name: 'search', type: 'string', required: false, description: 'Case-insensitive substring match against title_en OR title_ar — a match in either title returns the row.', example: 'helmet' },
+    { name: 'status', type: 'string', required: false, values: ['ACTIVE', 'INACTIVE'], description: 'Restrict to catalogue entries in this state.', example: 'ACTIVE' },
+    { name: 'page', type: 'integer', required: false, default: '1', description: 'Page number, starting at 1.', example: '2' },
+    { name: 'per_page', type: 'integer', required: false, description: 'Page size, between 1 and 100.', example: '25' },
+  ]}
+/>
+
+:::note This module paginates by page number
+`page` and `per_page` here, not `limit`/`offset` as on the supplier and report endpoints. The
+response envelope is the same in both cases. See [Pagination](/concepts/pagination).
+:::
+
+## Request example
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="cURL">
+
+```bash
+curl --request GET \
+  --url 'https://sandboxapi.allowmena.com/api/v1/web-app/issued-items?status=ACTIVE&per_page=25' \
+  --header 'Authorization: Bearer YOUR_TOKEN'
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+import os
+import requests
+
+response = requests.get(
+    "https://sandboxapi.allowmena.com/api/v1/web-app/issued-items",
+    headers={"Authorization": f"Bearer {os.environ['ALLOW_TOKEN']}"},
+    params={"status": "ACTIVE", "per_page": 25},
+    timeout=30,
+)
+response.raise_for_status()
+
+for item in response.json()["data"]:
+    print(item["id"], item["category_code"], item["title_en"])
+```
+
+</TabItem>
+<TabItem value="js" label="JavaScript">
+
+```javascript
+const url = new URL('https://sandboxapi.allowmena.com/api/v1/web-app/issued-items');
+url.searchParams.set('status', 'ACTIVE');
+url.searchParams.set('per_page', '25');
+
+const response = await fetch(url, {
+  headers: { Authorization: `Bearer ${process.env.ALLOW_TOKEN}` },
+});
+
+for (const item of (await response.json()).data) {
+  console.log(item.id, item.category_code, item.title_en);
+}
+```
+
+</TabItem>
+</Tabs>
+
+## Response
+
+`200 OK`
+
+```json
+{
+  "status": true,
+  "status_code": 200,
+  "message": "Issued items fetched successfully",
+  "data": [
+    {
+      "id": 4,
+      "category_code": "HLMT001",
+      "title_en": "Safety helmet",
+      "title_ar": "خوذة أمان",
+      "status": "ACTIVE",
+      "created_at": "2026-01-14 09:02:11",
+      "updated_at": "2026-03-02 14:20:55"
+    }
+  ],
+  "links": { "limit": 25, "offset": 0, "next": null, "previous": null },
+  "count": 1
+}
+```
+
+<ParamTable
+  title="data[] fields"
+  params={[
+    { name: 'id', type: 'integer', required: true, description: 'Catalogue entry id. This is what you pass as issued_item_id when issuing to a driver.' },
+    { name: 'category_code', type: 'string', required: true, values: ['HLMT001', 'TSRT001', 'PNTS001', 'JCKT001', 'PHNE001', 'CASH001', 'HBG001'], description: <>Item category. See <a href="/concepts/enumerations#item-categories">Item categories</a>.</> },
+    { name: 'title_en', type: 'string', required: true, description: 'English title.' },
+    { name: 'title_ar', type: 'string', required: true, description: 'Arabic title.' },
+    { name: 'status', type: 'string', required: true, values: ['ACTIVE', 'INACTIVE'], description: 'Whether the entry can currently be issued. INACTIVE is how a catalogue entry is retired.' },
+    { name: 'created_at', type: 'string | null', required: false, description: 'When the entry was created.' },
+    { name: 'updated_at', type: 'string | null', required: false, description: 'When the entry was last changed.' },
+  ]}
+/>
+
+## Errors
+
+<ErrorTable
+  errors={[
+    { status: 401, code: 'TOKEN_MISSING', when: <>No <code>Authorization</code> header.</> },
+    { status: 401, code: 'TOKEN_EXPIRED', when: <>The access token has expired.</> },
+    { status: 403, code: 'FORBIDDEN', when: <>The token lacks <code>read-issued_items</code>.</> },
+    { status: 422, code: 'VALIDATION_ERROR', when: <><code>status</code> is not ACTIVE or INACTIVE, or <code>per_page</code> is outside 1–100.</> },
+    { status: 500, code: 'INTERNAL_SERVER_ERROR', when: <>Unhandled server error.</> },
+  ]}
+/>

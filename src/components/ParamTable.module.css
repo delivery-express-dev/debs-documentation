@@ -1,0 +1,120 @@
+.wrapper {
+  margin: 0 0 1.5rem;
+}
+
+.caption {
+  font-size: 0.72rem;
+  font-weight: 640;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--allow-text-muted);
+  margin: 0 0 0.5rem;
+}
+
+/* The scroll container: on a phone the table keeps its columns and scrolls
+   sideways instead of collapsing descriptions to one word per line. */
+.scroll {
+  overflow-x: auto;
+  border: 1px solid var(--allow-border);
+  border-radius: 8px;
+}
+
+.table {
+  width: 100%;
+  min-width: 34rem;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.855rem;
+  margin: 0;
+}
+
+.table th {
+  text-align: left;
+  font-size: 0.7rem;
+  font-weight: 640;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--allow-text-muted);
+  background: var(--allow-surface-subtle);
+  padding: 0.55rem 0.8rem;
+  border-bottom: 1px solid var(--allow-border);
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--allow-border);
+  vertical-align: top;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.name {
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--allow-surface-sunken);
+  border: 1px solid var(--allow-border);
+  border-radius: 5px;
+  padding: 0.1rem 0.38rem;
+  font-size: 0.82rem;
+}
+
+.type {
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.79rem;
+  color: var(--allow-text-muted);
+  white-space: nowrap;
+}
+
+.required {
+  font-size: 0.72rem;
+  font-weight: 650;
+  color: var(--m-delete);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.optional {
+  font-size: 0.72rem;
+  color: var(--allow-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.description {
+  min-width: 15rem;
+  line-height: 1.6;
+}
+
+/* Allowed-value chips sit on their own line under the description. */
+.values {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.4rem;
+}
+
+.valuesLabel {
+  font-size: 0.68rem;
+  font-weight: 640;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--allow-text-muted);
+  margin-right: 0.1rem;
+}
+
+.values code,
+.table td > code {
+  font-size: 0.79rem;
+  background: var(--allow-surface-sunken);
+  border: 1px solid var(--allow-border);
+  border-radius: 4px;
+  padding: 0.05rem 0.3rem;
+}
+
+.dash {
+  color: var(--allow-border-strong);
+}

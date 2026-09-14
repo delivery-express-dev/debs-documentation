@@ -1,0 +1,143 @@
+---
+id: get-supplier
+title: Get Supplier
+sidebar_label: Get Supplier
+sidebar_position: 2
+description: Retrieve a single Allow MENA supplier with its country, business types, logo and owning user account.
+---
+
+# Get Supplier
+
+<Endpoint
+  method="GET"
+  path="/api/v1/web-app/suppliers/{supplier_id}"
+  auth="Bearer token"
+  permission={['read-supplier', 'create-supplier', 'update-supplier']}
+/>
+
+Returns a single supplier in full: country, business types, logo, status and the owning user account.
+This is what the portal's supplier detail and edit screens read — which is why the create and update
+permissions also grant access.
+
+## Path parameters
+
+<ParamTable
+  params={[
+    { name: 'supplier_id', type: 'integer', required: true, description: 'The supplier to retrieve.', example: '12' },
+  ]}
+/>
+
+## Request example
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="cURL">
+
+```bash
+curl --request GET \
+  --url 'https://sandboxapi.allowmena.com/api/v1/web-app/suppliers/12' \
+  --header 'Authorization: Bearer YOUR_TOKEN'
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+import os
+import requests
+
+response = requests.get(
+    "https://sandboxapi.allowmena.com/api/v1/web-app/suppliers/12",
+    headers={"Authorization": f"Bearer {os.environ['ALLOW_TOKEN']}"},
+    timeout=30,
+)
+response.raise_for_status()
+
+supplier = response.json()["data"]
+print(supplier["supplierName"], supplier["userDetails"]["email"])
+```
+
+</TabItem>
+<TabItem value="js" label="JavaScript">
+
+```javascript
+const response = await fetch('https://sandboxapi.allowmena.com/api/v1/web-app/suppliers/12', {
+  headers: { Authorization: `Bearer ${process.env.ALLOW_TOKEN}` },
+});
+
+const supplier = (await response.json()).data;
+console.log(supplier.supplierName, supplier.userDetails.email);
+```
+
+</TabItem>
+</Tabs>
+
+## Response
+
+`200 OK`
+
+```json
+{
+  "status": true,
+  "status_code": 200,
+  "message": "Supplier details fetched successfully.",
+  "data": {
+    "id": 12,
+    "supplierName": "Bright Foods",
+    "contactPerson": "Noor Hassan",
+    "logo": "https://files.allowmena.com/logo/supplier/bright-foods.png",
+    "status": true,
+    "countryDetails": { "id": 1, "name": "Kuwait", "code": 965 },
+    "businessTypeDetails": [{ "id": 3, "name": "Restaurant" }],
+    "userDetails": {
+      "id": 88,
+      "firstName": "Noor",
+      "lastName": "Hassan",
+      "fullName": "Noor Hassan",
+      "email": "noor@brightfoods.example",
+      "mobile": "55112233",
+      "roleDetails": { "id": 4, "name": "Supplier Admin", "slug": "supplier_admin" },
+      "preferredLanguage": { "id": 1, "label": "English", "code": "en" }
+    }
+  }
+}
+```
+
+<ParamTable
+  title="data fields"
+  params={[
+    { name: 'id', type: 'integer', required: true, description: 'Supplier id.' },
+    { name: 'supplierName', type: 'string', required: true, description: 'Supplier name.' },
+    { name: 'contactPerson', type: 'string', required: true, description: 'Named contact at the supplier.' },
+    { name: 'logo', type: 'string', required: true, description: 'URL of the supplier logo.' },
+    { name: 'status', type: 'boolean', required: true, description: 'Whether the supplier is active.' },
+    { name: 'countryDetails', type: 'object', required: true, description: "The supplier's country." },
+    { name: 'countryDetails.id', type: 'integer', required: true, description: 'Country id.' },
+    { name: 'countryDetails.name', type: 'string', required: true, description: 'Country name.' },
+    { name: 'countryDetails.code', type: 'integer', required: true, description: 'Dialling code, as a number — 965, not "+965".' },
+    { name: 'businessTypeDetails', type: 'array<object>', required: true, description: 'Business types assigned to the supplier.' },
+    { name: 'userDetails', type: 'object', required: true, description: "The supplier's owning user account." },
+    { name: 'userDetails.id', type: 'integer', required: true, description: 'User id.' },
+    { name: 'userDetails.firstName', type: 'string', required: true, description: 'First name.' },
+    { name: 'userDetails.lastName', type: 'string | null', required: false, description: 'Last name.' },
+    { name: 'userDetails.fullName', type: 'string', required: true, description: 'Full name.' },
+    { name: 'userDetails.email', type: 'string', required: true, description: 'Login email.' },
+    { name: 'userDetails.mobile', type: 'string', required: true, description: 'Mobile number.' },
+    { name: 'userDetails.roleDetails', type: 'object', required: true, description: "The user's role — id, name and slug." },
+    { name: 'userDetails.preferredLanguage', type: 'object', required: true, description: 'Preferred language — id, label and code.' },
+  ]}
+/>
+
+No password field is ever returned.
+
+## Errors
+
+<ErrorTable
+  errors={[
+    { status: 401, code: 'TOKEN_MISSING', when: <>No <code>Authorization</code> header.</> },
+    { status: 401, code: 'TOKEN_EXPIRED', when: <>The access token has expired.</> },
+    { status: 403, code: 'FORBIDDEN', when: <>The token has none of <code>read-supplier</code>, <code>create-supplier</code> or <code>update-supplier</code>.</> },
+    { status: 404, code: 'NOT_FOUND', when: <><code>Supplier not found</code> — no supplier with that id, or it has been deleted.</> },
+    { status: 422, code: 'VALIDATION_ERROR', when: <><code>supplier_id</code> is not an integer.</> },
+    { status: 500, code: 'INTERNAL_SERVER_ERROR', when: <>Unhandled server error.</> },
+  ]}
+/>

@@ -1,0 +1,138 @@
+---
+id: restore-to-delivered
+title: Restore to Delivered
+sidebar_label: Restore to Delivered
+sidebar_position: 5
+description: Restore a cancelled-after-pickup Allow MENA order back to Delivered. Restricted to super admins.
+---
+
+# Restore to Delivered
+
+<Endpoint
+  method="POST"
+  path="/api/v1/web-app/orders/{order_id}/restore-to-delivered"
+  auth="Bearer token"
+  permission="Super admin only"
+/>
+
+Moves an order's status from **Cancelled** back to **Delivered**. It applies only where the order was
+cancelled *after* the driver had already picked it up — an order cancelled before pickup was never
+delivered and cannot be restored.
+
+:::danger Restricted to super admins
+This endpoint is **not** granted by a feature code. It is gated on the caller being the super admin
+(user id `1`). No permission can be assigned to grant it. It rewrites delivery history and moves
+money, which is why it is held at that level.
+:::
+
+## What it changes
+
+- The existing **Cancelled** order-history entry is soft-deleted, and a new **Delivered** entry is
+  created stamped with the *original cancellation time*.
+- The order snapshot is updated with the exact delivery time.
+- If the order is **Cash on Delivery** with a positive amount due, a **Debit** transaction is
+  recorded on the driver's wallet for that amount — recreating the liability that cancellation
+  removed.
+
+## Path parameters
+
+<ParamTable
+  params={[
+    { name: 'order_id', type: 'integer', required: true, description: 'The cancelled order to restore.', example: '19444' },
+  ]}
+/>
+
+## Request body
+
+<ParamTable
+  params={[
+    { name: 'driverId', type: 'integer', required: true, description: "The driver assigned to the order — the one whose wallet is debited if the order is Cash on Delivery.", example: '7' },
+  ]}
+/>
+
+## Request example
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="cURL">
+
+```bash
+curl --request POST \
+  --url 'https://sandboxapi.allowmena.com/api/v1/web-app/orders/19444/restore-to-delivered' \
+  --header 'Authorization: Bearer YOUR_SUPER_ADMIN_TOKEN' \
+  --header 'Content-Type: application/json' \
+  --data '{ "driverId": 7 }'
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+import os
+import requests
+
+# Requires a super-admin token; no feature code grants this.
+response = requests.post(
+    "https://sandboxapi.allowmena.com/api/v1/web-app/orders/19444/restore-to-delivered",
+    headers={
+        "Authorization": f"Bearer {os.environ['ALLOW_SUPER_ADMIN_TOKEN']}",
+        "Content-Type": "application/json",
+    },
+    json={"driverId": 7},
+    timeout=30,
+)
+response.raise_for_status()
+
+print(response.json()["data"]["orderId"])
+```
+
+</TabItem>
+<TabItem value="js" label="JavaScript">
+
+```javascript
+// Requires a super-admin token; no feature code grants this.
+const response = await fetch(
+  'https://sandboxapi.allowmena.com/api/v1/web-app/orders/19444/restore-to-delivered',
+  {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${process.env.ALLOW_SUPER_ADMIN_TOKEN}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ driverId: 7 }),
+  },
+);
+
+console.log((await response.json()).data.orderId);
+```
+
+</TabItem>
+</Tabs>
+
+## Response
+
+`200 OK`
+
+```json
+{
+  "status": true,
+  "status_code": 200,
+  "message": "Order restored to delivered successfully",
+  "data": {
+    "orderId": 19444
+  }
+}
+```
+
+## Errors
+
+<ErrorTable
+  errors={[
+    { status: 400, code: 'INVALID_OPERATION', when: <><code>Only cancelled orders can be restored to delivered.</code></> },
+    { status: 400, code: 'INVALID_OPERATION', when: <><code>Only orders cancelled after pickup can be restored to delivered.</code></> },
+    { status: 401, code: 'TOKEN_MISSING', when: <>No <code>Authorization</code> header.</> },
+    { status: 403, code: 'FORBIDDEN', when: <>The caller is not the super admin. No feature code lifts this.</> },
+    { status: 404, code: 'NOT_FOUND', when: <>No order with that id.</> },
+    { status: 422, code: 'VALIDATION_ERROR', when: <><code>driverId</code> is missing or not an integer.</> },
+    { status: 500, code: 'INTERNAL_SERVER_ERROR', when: <>Unhandled server error.</> },
+  ]}
+/>

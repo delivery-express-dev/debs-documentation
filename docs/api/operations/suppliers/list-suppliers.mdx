@@ -1,0 +1,148 @@
+---
+id: list-suppliers
+title: List Suppliers
+sidebar_label: List Suppliers
+sidebar_position: 1
+description: Paginated list of Allow MENA suppliers with business types, logo and branch count.
+---
+
+# List Suppliers
+
+<Endpoint
+  method="GET"
+  path="/api/v1/web-app/suppliers"
+  auth="Bearer token"
+  permission="read-supplier"
+/>
+
+Returns a paginated list of suppliers with their business types, logo URL and branch count. This is
+the supplier index the operations portal renders.
+
+## Query parameters
+
+<ParamTable
+  params={[
+    { name: 'search', type: 'string', required: false, description: 'Case-insensitive substring match on supplier name.', example: 'bright' },
+    { name: 'sortBy', type: 'string', required: false, values: ['supplier_name', '-supplier_name', 'id', '-id'], description: 'Sort order. A leading minus sorts descending.', example: '-supplier_name' },
+    { name: 'limit', type: 'integer', required: false, default: '8', description: 'Page size, between 1 and 200.', example: '25' },
+    { name: 'offset', type: 'integer', required: false, default: '0', description: 'Records to skip.', example: '25' },
+    { name: 'noPage', type: 'boolean', required: false, default: 'false', description: 'If true, return every supplier without pagination.', example: 'true' },
+  ]}
+/>
+
+## Request example
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="cURL">
+
+```bash
+curl --request GET \
+  --url 'https://sandboxapi.allowmena.com/api/v1/web-app/suppliers?search=bright&sortBy=supplier_name&limit=25' \
+  --header 'Authorization: Bearer YOUR_TOKEN'
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+import os
+import requests
+
+response = requests.get(
+    "https://sandboxapi.allowmena.com/api/v1/web-app/suppliers",
+    headers={"Authorization": f"Bearer {os.environ['ALLOW_TOKEN']}"},
+    params={"search": "bright", "sortBy": "supplier_name", "limit": 25},
+    timeout=30,
+)
+response.raise_for_status()
+
+body = response.json()
+for supplier in body["data"]:
+    print(supplier["id"], supplier["supplierName"], supplier["numberOfBranches"])
+
+# Follow links.next rather than computing offsets yourself.
+next_page = body["links"]["next"]
+```
+
+</TabItem>
+<TabItem value="js" label="JavaScript">
+
+```javascript
+const url = new URL('https://sandboxapi.allowmena.com/api/v1/web-app/suppliers');
+url.searchParams.set('search', 'bright');
+url.searchParams.set('sortBy', 'supplier_name');
+url.searchParams.set('limit', '25');
+
+const response = await fetch(url, {
+  headers: { Authorization: `Bearer ${process.env.ALLOW_TOKEN}` },
+});
+
+const body = await response.json();
+for (const supplier of body.data) {
+  console.log(supplier.id, supplier.supplierName, supplier.numberOfBranches);
+}
+
+// Follow links.next rather than computing offsets yourself.
+const nextPage = body.links.next;
+```
+
+</TabItem>
+</Tabs>
+
+## Response
+
+`200 OK`
+
+```json
+{
+  "status": true,
+  "status_code": 200,
+  "message": "Suppliers fetched successfully",
+  "data": [
+    {
+      "id": 12,
+      "supplierName": "Bright Foods",
+      "businessTypeDetails": [
+        { "id": 3, "name": "Restaurant" }
+      ],
+      "logo": "https://files.allowmena.com/logo/supplier/bright-foods.png",
+      "numberOfBranches": 4
+    }
+  ],
+  "links": {
+    "limit": 25,
+    "offset": 0,
+    "next": null,
+    "previous": null
+  },
+  "count": 1
+}
+```
+
+<ParamTable
+  title="data[] fields"
+  params={[
+    { name: 'id', type: 'integer', required: true, description: 'Supplier id.' },
+    { name: 'supplierName', type: 'string', required: true, description: 'Supplier name.' },
+    { name: 'businessTypeDetails', type: 'array<object>', required: true, description: 'Business types assigned to the supplier.' },
+    { name: 'businessTypeDetails[].id', type: 'integer', required: true, description: 'Business type id.' },
+    { name: 'businessTypeDetails[].name', type: 'string', required: true, description: 'Business type name.' },
+    { name: 'logo', type: 'string', required: true, description: 'URL of the supplier logo.' },
+    { name: 'numberOfBranches', type: 'integer', required: true, description: 'How many branches the supplier has.' },
+  ]}
+/>
+
+This list view is deliberately lean — it omits the country, status and owning user account that
+[Get Supplier](/api/operations/suppliers/get-supplier) returns.
+
+## Errors
+
+<ErrorTable
+  errors={[
+    { status: 401, code: 'TOKEN_MISSING', when: <>No <code>Authorization</code> header.</> },
+    { status: 401, code: 'TOKEN_EXPIRED', when: <>The access token has expired.</> },
+    { status: 403, code: 'FORBIDDEN', when: <>The token lacks <code>read-supplier</code>.</> },
+    { status: 422, code: 'VALIDATION_ERROR', when: <><code>sortBy</code> is not one of the allowed values, or <code>limit</code> is outside 1–200.</> },
+    { status: 500, code: 'INTERNAL_SERVER_ERROR', when: <>Unhandled server error.</> },
+  ]}
+/>

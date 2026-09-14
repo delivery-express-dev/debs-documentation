@@ -1,0 +1,323 @@
+---
+id: reference-data
+title: Reference Data
+sidebar_label: Reference Data
+sidebar_position: 9
+description: The fourteen lookup endpoints that populate the Allow MENA operations portal's dropdowns — driver types, order statuses, countries and more.
+toc_max_heading_level: 3
+---
+
+# Reference Data
+
+Fourteen small `GET` endpoints returning the lookup lists the portal's dropdowns are built from.
+They share a shape, so they are documented together here rather than one page each.
+
+All of them:
+
+- are `GET` under `/api/v1/web-app`, take no path parameters and no request body;
+- require a [bearer token](/getting-started/authentication#bearer-tokens) plus a permission;
+- return the [list envelope](/getting-started/response-format#unpaginated-lists);
+- are cached server-side for 24 hours.
+
+## Shared query parameters
+
+Thirteen of the fourteen accept the same pagination parameters. They are **paginated by default**,
+eight rows per page — which is rarely what a dropdown wants, so most callers pass `no_page=true`.
+
+<ParamTable
+  params={[
+    { name: 'limit', type: 'integer', required: false, default: '8', description: 'Page size, between 1 and 200.', example: '50' },
+    { name: 'offset', type: 'integer', required: false, default: '0', description: 'Records to skip.', example: '50' },
+    { name: 'no_page', type: 'boolean', required: false, default: 'false', description: 'Return every row without pagination. Cannot be combined with limit or offset.', example: 'true' },
+  ]}
+/>
+
+:::caution `no_page` here, `noPage` elsewhere
+These endpoints spell it `no_page` with an underscore. The supplier and report endpoints spell the
+same flag `noPage`. See [Pagination](/concepts/pagination).
+
+Also note: sending `no_page=true` **together with** `limit` or `offset` is rejected with
+`400 limit and offset must not be provided when no_page=true.` Send one or the other.
+:::
+
+### The response changes shape with `no_page`
+
+| Request | Envelope |
+| --- | --- |
+| Default (paginated) | `{ status, status_code, message, data, links, count }` |
+| `no_page=true` | `{ status, status_code, message, data }` — **no `links`, no `count`** |
+
+A client that always reads `links.next` will fail on an unpaginated response. Branch on whether you
+asked for pagination.
+
+`/item-categories` is the exception — it takes no parameters at all and always returns the full list
+without `links` or `count`.
+
+## Example
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="cURL">
+
+```bash
+curl --request GET \
+  --url 'https://sandboxapi.allowmena.com/api/v1/web-app/order-status?no_page=true' \
+  --header 'Authorization: Bearer YOUR_TOKEN'
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+import os
+import requests
+
+def lookup(path: str) -> list[dict]:
+    """Fetch a full reference list — dropdowns want every row, not page one."""
+    response = requests.get(
+        f"https://sandboxapi.allowmena.com/api/v1/web-app/{path}",
+        headers={"Authorization": f"Bearer {os.environ['ALLOW_TOKEN']}"},
+        params={"no_page": "true"},
+        timeout=30,
+    )
+    response.raise_for_status()
+    return response.json()["data"]
+
+
+statuses = lookup("order-status")
+```
+
+</TabItem>
+<TabItem value="js" label="JavaScript">
+
+```javascript
+/** Fetch a full reference list — dropdowns want every row, not page one. */
+async function lookup(path) {
+  const url = new URL(`https://sandboxapi.allowmena.com/api/v1/web-app/${path}`);
+  url.searchParams.set('no_page', 'true');
+
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${process.env.ALLOW_TOKEN}` },
+  });
+  return (await response.json()).data;
+}
+
+const statuses = await lookup('order-status');
+```
+
+</TabItem>
+</Tabs>
+
+```json title="Response — no_page=true"
+{
+  "status": true,
+  "status_code": 200,
+  "message": "Order statuses retrieved successfully.",
+  "data": [
+    { "id": 1, "name": "Created", "slug": "created" },
+    { "id": 2, "name": "Assigned", "slug": "assigned" }
+  ]
+}
+```
+
+## The endpoints
+
+### Driver Types
+
+<Endpoint method="GET" path="/api/v1/web-app/driver-types" auth="Bearer token" permission={['create-driver', 'update-driver']} />
+
+<ParamTable
+  params={[
+    { name: 'id', type: 'integer', required: true, description: 'Driver type id.' },
+    { name: 'name', type: 'string', required: true, description: 'Display name.' },
+    { name: 'slug', type: 'string', required: true, description: 'Machine-readable key.' },
+    { name: 'working_hours', type: 'integer', required: true, description: 'Contracted working hours for this driver type.' },
+  ]}
+/>
+
+### User Types
+
+<Endpoint method="GET" path="/api/v1/web-app/user-types" auth="Bearer token" permission={['create-role', 'update-role']} />
+
+<ParamTable
+  params={[
+    { name: 'id', type: 'integer', required: true, description: 'User type id.' },
+    { name: 'label', type: 'string', required: true, description: 'Display label. Note: `label`, not `name`.' },
+  ]}
+/>
+
+### Business Types
+
+<Endpoint method="GET" path="/api/v1/web-app/business-types" auth="Bearer token" permission={['read-supplier', 'create-supplier', 'update-supplier']} />
+
+<ParamTable
+  params={[
+    { name: 'id', type: 'integer', required: true, description: <>Business type id. Pass these to <a href="/api/operations/suppliers/create-supplier">Create Supplier</a> as <code>businessTypes</code>.</> },
+    { name: 'name', type: 'string', required: true, description: 'Display name.' },
+  ]}
+/>
+
+### Payment Types
+
+<Endpoint method="GET" path="/api/v1/web-app/payment-types" auth="Bearer token" permission="create-order" />
+
+<ParamTable
+  params={[
+    { name: 'id', type: 'integer', required: true, description: <>Payment type id — <code>1</code> Cash on Delivery, <code>2</code> Online. See <a href="/concepts/enumerations#payment-type">Payment type</a>.</> },
+    { name: 'name', type: 'string', required: true, description: 'Display name.' },
+    { name: 'slug', type: 'string | null', required: false, description: 'Machine-readable key.' },
+  ]}
+/>
+
+### Break Types
+
+<Endpoint method="GET" path="/api/v1/web-app/break-types" auth="Bearer token" permission="read-driver_break_types" />
+
+<ParamTable
+  params={[
+    { name: 'id', type: 'integer', required: true, description: 'Break type id.' },
+    { name: 'label', type: 'string', required: true, description: 'Display label.' },
+  ]}
+/>
+
+### Order Sources
+
+<Endpoint method="GET" path="/api/v1/web-app/order-sources" auth="Bearer token" />
+
+Requires a valid token but **no** feature code — any authenticated portal user can read it.
+
+<ParamTable
+  params={[
+    { name: 'id', type: 'integer', required: true, description: 'Order source id.' },
+    { name: 'name', type: 'string', required: true, description: 'Display name.' },
+  ]}
+/>
+
+### Payment Status
+
+<Endpoint method="GET" path="/api/v1/web-app/payment-status" auth="Bearer token" />
+
+Requires a valid token but **no** feature code.
+
+<ParamTable
+  params={[
+    { name: 'id', type: 'integer', required: true, description: <>Payment status id — <code>1</code> Pending, <code>2</code> Completed.</> },
+    { name: 'name', type: 'string', required: true, description: 'Display name.' },
+    { name: 'slug', type: 'string | null', required: false, description: 'Machine-readable key.' },
+  ]}
+/>
+
+### Order Status
+
+<Endpoint method="GET" path="/api/v1/web-app/order-status" auth="Bearer token" permission="read-order" />
+
+<ParamTable
+  params={[
+    { name: 'id', type: 'integer', required: true, description: <>Order status id. Pass these to the driver performance report as <code>orderStatusIds</code>. See <a href="/concepts/enumerations#order-status">Order status</a>.</> },
+    { name: 'name', type: 'string', required: true, description: 'Display name.' },
+    { name: 'slug', type: 'string | null', required: false, description: 'Machine-readable key.' },
+  ]}
+/>
+
+### Issue Status
+
+<Endpoint method="GET" path="/api/v1/web-app/issue-status" auth="Bearer token" permission="read-issue" />
+
+<ParamTable
+  params={[
+    { name: 'id', type: 'integer', required: true, description: 'Issue status id.' },
+    { name: 'name', type: 'string', required: true, description: 'Display name.' },
+    { name: 'slug', type: 'string | null', required: false, description: 'Machine-readable key.' },
+  ]}
+/>
+
+### Week Days
+
+<Endpoint method="GET" path="/api/v1/web-app/week-days" auth="Bearer token" permission={['read-supplier_branch_hour', 'create-supplier_branch_hour']} />
+
+<ParamTable
+  params={[
+    { name: 'id', type: 'integer', required: true, description: 'Week day id.' },
+    { name: 'label', type: 'string', required: true, description: 'Day name.' },
+  ]}
+/>
+
+### Leave Status
+
+<Endpoint method="GET" path="/api/v1/web-app/leave-status" auth="Bearer token" permission="read-leave_detail" />
+
+<ParamTable
+  params={[
+    { name: 'id', type: 'integer', required: true, description: 'Leave status id.' },
+    { name: 'name', type: 'string', required: true, description: 'Display name.' },
+    { name: 'slug', type: 'string | null', required: false, description: 'Machine-readable key.' },
+  ]}
+/>
+
+### Countries
+
+<Endpoint method="GET" path="/api/v1/web-app/countries" auth="Bearer token" permission="read-country" />
+
+The richest of the lookups — it carries the validation rules and map bounds for each country.
+
+<ParamTable
+  params={[
+    { name: 'id', type: 'integer', required: true, description: <>Country id. Pass to <a href="/api/operations/suppliers/create-supplier">Create Supplier</a> as <code>country</code>.</> },
+    { name: 'name', type: 'string', required: true, description: 'Country name.' },
+    { name: 'code', type: 'integer', required: true, description: 'Dialling code as a number — 965, not "+965".' },
+    { name: 'iso_code', type: 'string | null', required: false, description: 'ISO country code.' },
+    { name: 'mob_num_digits', type: 'integer', required: true, description: 'Expected mobile number length. This is where the 8-digit rule on supplier mobiles comes from.' },
+    { name: 'national_id_data_type', type: 'string | null', required: false, description: 'Data type of the national id.' },
+    { name: 'national_id_data_size', type: 'integer', required: true, description: 'Expected national id length.' },
+    { name: 'states', type: 'array', required: true, description: 'States belonging to the country, embedded inline.' },
+    { name: 'center', type: 'object', required: true, description: 'Geographic centre point of the country, for map defaults.' },
+    { name: 'west_longitude', type: 'number', required: true, description: 'Western bound of the country bounding box.' },
+    { name: 'south_latitude', type: 'number', required: true, description: 'Southern bound.' },
+    { name: 'east_longitude', type: 'number', required: true, description: 'Eastern bound.' },
+    { name: 'north_latitude', type: 'number', required: true, description: 'Northern bound.' },
+  ]}
+/>
+
+### States
+
+<Endpoint method="GET" path="/api/v1/web-app/states" auth="Bearer token" permission={['read-state', 'create-driver', 'update-driver', 'create-order', 'create-zone', 'update-zone', 'create-area', 'update-area', 'create-supplier_branch', 'update-supplier_branch']} />
+
+Ten different feature codes grant this — it backs a state picker that appears on most portal forms.
+
+<ParamTable
+  params={[
+    { name: 'id', type: 'integer', required: true, description: 'State id.' },
+    { name: 'name', type: 'string', required: true, description: 'State name.' },
+    { name: 'country', type: 'integer', required: true, description: 'Id of the country this state belongs to.' },
+  ]}
+/>
+
+### Item Categories
+
+<Endpoint method="GET" path="/api/v1/web-app/item-categories" auth="Bearer token" permission="read-issued_items" />
+
+The categories an [issued item](/api/operations/issued-items/create-issued-item) can belong to.
+**Takes no query parameters** and is never paginated.
+
+<ParamTable
+  params={[
+    { name: 'code', type: 'string', required: true, description: <>Category code. Pass to Create Issued Item as <code>category_code</code>. See <a href="/concepts/enumerations#item-categories">Item categories</a>.</> },
+    { name: 'label', type: 'string', required: true, description: 'Display label.' },
+  ]}
+/>
+
+Note this one returns `code` and `label` — no `id`, unlike every other lookup here.
+
+## Errors
+
+The same set applies to all fourteen.
+
+<ErrorTable
+  errors={[
+    { status: 400, code: 'BAD_REQUEST', when: <><code>limit and offset must not be provided when no_page=true.</code></> },
+    { status: 401, code: 'TOKEN_MISSING', when: <>No <code>Authorization</code> header.</> },
+    { status: 401, code: 'TOKEN_EXPIRED', when: <>The access token has expired.</> },
+    { status: 403, code: 'FORBIDDEN', when: <>The token has none of the feature codes listed for that endpoint.</> },
+    { status: 422, code: 'VALIDATION_ERROR', when: <><code>limit</code> outside 1–200, or a negative <code>offset</code>.</> },
+    { status: 500, code: 'INTERNAL_SERVER_ERROR', when: <>Unhandled server error.</> },
+  ]}
+/>

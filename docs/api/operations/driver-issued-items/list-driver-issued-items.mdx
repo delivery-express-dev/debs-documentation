@@ -1,0 +1,151 @@
+---
+id: list-driver-issued-items
+title: List Driver Issued Items
+sidebar_label: List Driver Items
+sidebar_position: 1
+description: Paginated ledger of equipment issued to a specific Allow MENA driver, including returned items.
+---
+
+# List Driver Issued Items
+
+<Endpoint
+  method="GET"
+  path="/api/v1/web-app/drivers/{driver_id}/issued-items"
+  auth="Bearer token"
+  permission="read-driver_issued_items"
+/>
+
+Returns the ledger of what has been issued to one driver — both what they currently hold (`ISSUED`)
+and what they have returned (`RESTORED`).
+
+Each row carries the item's titles **as they were at the time of issue**, snapshotted onto the
+assignment. Renaming a catalogue entry later does not rewrite history, and the portal does not need
+a second call to the catalogue to render the ledger.
+
+## Path parameters
+
+<ParamTable
+  params={[
+    { name: 'driver_id', type: 'integer', required: true, description: 'The driver whose ledger to read. Must exist, or the request returns 404.', example: '7' },
+  ]}
+/>
+
+## Query parameters
+
+<ParamTable
+  params={[
+    { name: 'page', type: 'integer', required: false, default: '1', description: 'Page number, starting at 1.', example: '2' },
+    { name: 'per_page', type: 'integer', required: false, description: 'Page size, between 1 and 100.', example: '25' },
+  ]}
+/>
+
+There is no status filter — the ledger returns both issued and restored rows.
+
+## Request example
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="cURL">
+
+```bash
+curl --request GET \
+  --url 'https://sandboxapi.allowmena.com/api/v1/web-app/drivers/7/issued-items?per_page=25' \
+  --header 'Authorization: Bearer YOUR_TOKEN'
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+import os
+import requests
+
+response = requests.get(
+    "https://sandboxapi.allowmena.com/api/v1/web-app/drivers/7/issued-items",
+    headers={"Authorization": f"Bearer {os.environ['ALLOW_TOKEN']}"},
+    params={"per_page": 25},
+    timeout=30,
+)
+response.raise_for_status()
+
+still_held = [row for row in response.json()["data"] if row["status"] == "ISSUED"]
+for row in still_held:
+    print(row["id"], row["issued_item_title_en"], row["issue_date"])
+```
+
+</TabItem>
+<TabItem value="js" label="JavaScript">
+
+```javascript
+const url = new URL(
+  'https://sandboxapi.allowmena.com/api/v1/web-app/drivers/7/issued-items',
+);
+url.searchParams.set('per_page', '25');
+
+const response = await fetch(url, {
+  headers: { Authorization: `Bearer ${process.env.ALLOW_TOKEN}` },
+});
+
+const stillHeld = (await response.json()).data.filter((row) => row.status === 'ISSUED');
+for (const row of stillHeld) {
+  console.log(row.id, row.issued_item_title_en, row.issue_date);
+}
+```
+
+</TabItem>
+</Tabs>
+
+## Response
+
+`200 OK`
+
+```json
+{
+  "status": true,
+  "status_code": 200,
+  "message": "Driver issued items fetched successfully",
+  "data": [
+    {
+      "id": 331,
+      "issued_item_id": 4,
+      "issued_item_title_en": "Safety helmet",
+      "issued_item_title_ar": "خوذة أمان",
+      "amount": 1,
+      "item_code": "HLM-0099",
+      "issue_date": "2026-02-01",
+      "status": "ISSUED",
+      "restored_date": null,
+      "created_at": "2026-02-01 08:31:44"
+    }
+  ],
+  "links": { "limit": 25, "offset": 0, "next": null, "previous": null },
+  "count": 1
+}
+```
+
+<ParamTable
+  title="data[] fields"
+  params={[
+    { name: 'id', type: 'integer', required: true, description: 'Assignment id. This is the assignment_id used to restore the item.' },
+    { name: 'issued_item_id', type: 'integer', required: true, description: 'The catalogue entry this assignment refers to.' },
+    { name: 'issued_item_title_en', type: 'string', required: true, description: 'English title, snapshotted at issue time.' },
+    { name: 'issued_item_title_ar', type: 'string', required: true, description: 'Arabic title, snapshotted at issue time.' },
+    { name: 'amount', type: 'integer | null', required: false, description: 'Quantity or monetary amount issued, depending on the category.' },
+    { name: 'item_code', type: 'string | null', required: false, description: 'Asset tag or serial number for this specific item.' },
+    { name: 'issue_date', type: 'string (date)', required: true, description: 'When the item was issued, YYYY-MM-DD.' },
+    { name: 'status', type: 'string', required: true, values: ['ISSUED', 'RESTORED'], description: 'Whether the driver still holds the item.' },
+    { name: 'restored_date', type: 'string (date) | null', required: false, description: 'When the item was returned. Null while status is ISSUED.' },
+    { name: 'created_at', type: 'string | null', required: false, description: 'When the ledger row was created.' },
+  ]}
+/>
+
+## Errors
+
+<ErrorTable
+  errors={[
+    { status: 401, code: 'TOKEN_MISSING', when: <>No <code>Authorization</code> header.</> },
+    { status: 403, code: 'FORBIDDEN', when: <>The token lacks <code>read-driver_issued_items</code>.</> },
+    { status: 404, code: 'NOT_FOUND', when: <><code>Driver not found</code> — no driver with that id. An existing driver with an empty ledger returns 200 and an empty array.</> },
+    { status: 422, code: 'VALIDATION_ERROR', when: <><code>per_page</code> is outside 1–100, or <code>page</code> is below 1.</> },
+    { status: 500, code: 'INTERNAL_SERVER_ERROR', when: <>Unhandled server error.</> },
+  ]}
+/>

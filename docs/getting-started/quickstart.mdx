@@ -1,0 +1,248 @@
+---
+id: quickstart
+title: Quick start
+sidebar_label: Quick Start
+sidebar_position: 1
+description: Send your first delivery order to the Allow MENA Delivery API in four steps — from API key to webhook callback.
+---
+
+# Quick start
+
+This walks an integration partner from a fresh API key to a tracked delivery. It uses the **v3**
+partner API, which is the recommended version for new integrations.
+
+## 1. Get your API key
+
+Allow MENA issues you an `x-api-key`. The key is bound server-side to **one supplier branch**, so
+requests carry no supplier or branch field — the platform resolves both from the key. If you
+dispatch from several branches, you will be issued several keys.
+
+Keep it out of source control:
+
+```bash
+export ALLOW_API_KEY="YOUR_API_KEY"
+export ALLOW_BASE_URL="https://sandboxapi.allowmena.com"
+```
+
+## 2. Create an order
+
+Send the drop-off location, your own reference id, and how the order is paid for.
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="cURL">
+
+```bash
+curl --request POST \
+  --url "$ALLOW_BASE_URL/api/v3/external/orders" \
+  --header "x-api-key: $ALLOW_API_KEY" \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "orders": [
+      {
+        "drop-off": {
+          "latitude": 29.320556,
+          "longitude": 48.037866,
+          "name": "Sara Al-Ali",
+          "mobile": "77669900",
+          "block": "1",
+          "street": "20",
+          "building": "22"
+        },
+        "supplier_reference_id": "SHOP-1001",
+        "payment_type": 1,
+        "total_amount": 45
+      }
+    ]
+  }'
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+import os
+import requests
+
+BASE_URL = os.environ["ALLOW_BASE_URL"]
+API_KEY = os.environ["ALLOW_API_KEY"]
+
+response = requests.post(
+    f"{BASE_URL}/api/v3/external/orders",
+    headers={"x-api-key": API_KEY, "Content-Type": "application/json"},
+    json={
+        "orders": [
+            {
+                "drop-off": {
+                    "latitude": 29.320556,
+                    "longitude": 48.037866,
+                    "name": "Sara Al-Ali",
+                    "mobile": "77669900",
+                    "block": "1",
+                    "street": "20",
+                    "building": "22",
+                },
+                "supplier_reference_id": "SHOP-1001",
+                "payment_type": 1,
+                "total_amount": 45,
+            }
+        ]
+    },
+    timeout=30,
+)
+response.raise_for_status()
+
+for created in response.json()["data"]:
+    print(created["order_id"], created["supplier_reference_id"])
+```
+
+</TabItem>
+<TabItem value="js" label="JavaScript">
+
+```javascript
+const baseUrl = process.env.ALLOW_BASE_URL;
+const apiKey = process.env.ALLOW_API_KEY;
+
+const response = await fetch(`${baseUrl}/api/v3/external/orders`, {
+  method: 'POST',
+  headers: { 'x-api-key': apiKey, 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    orders: [
+      {
+        'drop-off': {
+          latitude: 29.320556,
+          longitude: 48.037866,
+          name: 'Sara Al-Ali',
+          mobile: '77669900',
+          block: '1',
+          street: '20',
+          building: '22',
+        },
+        supplier_reference_id: 'SHOP-1001',
+        payment_type: 1,
+        total_amount: 45,
+      },
+    ],
+  }),
+});
+
+if (!response.ok) throw new Error(`Create order failed: ${response.status}`);
+
+const { data } = await response.json();
+for (const created of data) {
+  console.log(created.order_id, created.supplier_reference_id);
+}
+```
+
+</TabItem>
+</Tabs>
+
+You get back the platform's order id paired with your own reference:
+
+```json
+{
+  "status": true,
+  "message": "Success",
+  "data": [
+    { "order_id": 19444, "supplier_reference_id": "SHOP-1001" }
+  ]
+}
+```
+
+**Store `order_id`.** It is what you use to track and cancel the order.
+
+:::tip `orders` is an array
+All three create-order versions take a batch. Sending ten orders in one request is one round trip
+and one database transaction — if any order in the batch is rejected, none are created. See
+[Create Order (v3)](/api/partner/create-order-v3).
+:::
+
+## 3. Track it
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="cURL">
+
+```bash
+curl --request GET \
+  --url "$ALLOW_BASE_URL/api/v2/external/orders/19444/tracking" \
+  --header "x-api-key: $ALLOW_API_KEY"
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+response = requests.get(
+    f"{BASE_URL}/api/v2/external/orders/19444/tracking",
+    headers={"x-api-key": API_KEY},
+    timeout=30,
+)
+response.raise_for_status()
+
+tracking = response.json()["data"]
+print(tracking["order_status"]["slug"])
+```
+
+</TabItem>
+<TabItem value="js" label="JavaScript">
+
+```javascript
+const response = await fetch(`${baseUrl}/api/v2/external/orders/19444/tracking`, {
+  headers: { 'x-api-key': apiKey },
+});
+
+const { data } = await response.json();
+console.log(data.order_status.slug);
+```
+
+</TabItem>
+</Tabs>
+
+```json
+{
+  "status": true,
+  "message": "Success",
+  "data": {
+    "driver": {
+      "name": "John Smith",
+      "country_code": "+965",
+      "mobile": "98000001",
+      "location": { "latitude": 29.3051261, "longitude": 47.800077 },
+      "estimated_time_of_delivery": 520
+    },
+    "order_status": { "name": "Assigned", "slug": "assigned" }
+  }
+}
+```
+
+Note that tracking is on **v2** — it was never added to v3. Order ids are shared across versions, so
+an order created on v3 tracks on v2. See [Track Order](/api/partner/track-order).
+
+## 4. Receive webhooks instead of polling
+
+Polling `tracking` in a loop works, but the platform will push status changes to you. Give Allow
+MENA two URLs for your branch and you will receive:
+
+- **[Driver Assigned](/api/webhooks/driver-assigned)** — once, when a driver takes the order, with
+  the driver's contact details and ETAs.
+- **[Order Status](/api/webhooks/order-status)** — on each subsequent status change, carrying your
+  own `supplier_reference_id` so you can match it to your record without a lookup table.
+
+```json title="Order status webhook body"
+{
+  "data": {
+    "supplier_reference_id": "SHOP-1001",
+    "order_id": 19444,
+    "order_status": { "name": "Picked Up", "slug": "picked_up" },
+    "notes": ""
+  }
+}
+```
+
+## Next steps
+
+- [Authentication](/getting-started/authentication) — key lifecycle, and what each 401 means.
+- [Create Order (v3)](/api/partner/create-order-v3) — every field, including scheduling, cart items
+  and pickup instructions.
+- [Errors](/getting-started/errors) — the two error envelopes and how to branch on them.
+- [Enumerations](/concepts/enumerations) — the numeric codes for payment type, order status and
+  collection method.

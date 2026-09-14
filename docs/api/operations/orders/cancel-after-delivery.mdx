@@ -1,0 +1,146 @@
+---
+id: cancel-after-delivery
+title: Cancel After Delivery
+sidebar_label: Cancel After Delivery
+sidebar_position: 4
+description: Cancel an Allow MENA order that has already been delivered, reversing its cash-on-delivery effects.
+---
+
+# Cancel After Delivery
+
+<Endpoint
+  method="POST"
+  path="/api/v1/web-app/orders/{order_id}/cancel-after-delivery"
+  auth="Bearer token"
+  permission="cancel-after-delivery"
+/>
+
+Cancels an order that has already been marked **Delivered**, and reverses the cash-on-delivery
+effects that delivery created.
+
+This is a correction tool for the case where an order was marked delivered in error. The ordinary
+[Cancel Orders](/api/partner/cancel-orders) endpoint refuses delivered orders; this one is the
+deliberate exception, behind its own permission.
+
+## What it changes
+
+- The order and its Delivered history entry move to **Cancelled**.
+- The snapshot's exact delivery timestamp is cleared.
+- For **Cash on Delivery** orders, the delivery Debit transaction is removed and the driver's wallet
+  balance is decremented accordingly.
+
+## When it applies
+
+All three must hold:
+
+1. The supplied `driverId` matches the order's driver.
+2. The order status is **Delivered**.
+3. Cash has **not** yet been collected.
+
+Once cash is collected the order can no longer be cancelled this way — the money has already moved.
+
+## Path parameters
+
+<ParamTable
+  params={[
+    { name: 'order_id', type: 'integer', required: true, description: 'The delivered order to cancel.', example: '19444' },
+  ]}
+/>
+
+## Request body
+
+<ParamTable
+  params={[
+    { name: 'driverId', type: 'integer', required: true, description: "The driver assigned to the order. Must match the order's driver — this is a guard against cancelling the wrong order.", example: '7' },
+  ]}
+/>
+
+## Request example
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="cURL">
+
+```bash
+curl --request POST \
+  --url 'https://sandboxapi.allowmena.com/api/v1/web-app/orders/19444/cancel-after-delivery' \
+  --header 'Authorization: Bearer YOUR_TOKEN' \
+  --header 'Content-Type: application/json' \
+  --data '{ "driverId": 7 }'
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+import os
+import requests
+
+response = requests.post(
+    "https://sandboxapi.allowmena.com/api/v1/web-app/orders/19444/cancel-after-delivery",
+    headers={
+        "Authorization": f"Bearer {os.environ['ALLOW_TOKEN']}",
+        "Content-Type": "application/json",
+    },
+    json={"driverId": 7},
+    timeout=30,
+)
+response.raise_for_status()
+```
+
+</TabItem>
+<TabItem value="js" label="JavaScript">
+
+```javascript
+const response = await fetch(
+  'https://sandboxapi.allowmena.com/api/v1/web-app/orders/19444/cancel-after-delivery',
+  {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${process.env.ALLOW_TOKEN}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ driverId: 7 }),
+  },
+);
+
+if (!response.ok) throw new Error(`Cancel failed: ${response.status}`);
+```
+
+</TabItem>
+</Tabs>
+
+## Response
+
+`200 OK`
+
+```json
+{
+  "status": true,
+  "status_code": 200,
+  "message": "Order cancelled successfully",
+  "data": {}
+}
+```
+
+The response schema declares no fields, so `data` is an empty object.
+
+## Errors
+
+<ErrorTable
+  errors={[
+    { status: 400, code: 'INVALID_OPERATION', when: <><code>The provided driver id does not match the order's driver id.</code></> },
+    { status: 400, code: 'INVALID_OPERATION', when: <><code>Only delivered orders can be cancelled after delivery.</code></> },
+    { status: 401, code: 'TOKEN_MISSING', when: <>No <code>Authorization</code> header.</> },
+    { status: 403, code: 'FORBIDDEN', when: <>The token lacks <code>cancel-after-delivery</code>.</> },
+    { status: 404, code: 'NOT_FOUND', when: <>No order with that id.</> },
+    { status: 409, code: 'CONFLICT', when: <>Cash has already been collected for the order — it can no longer be reversed here.</> },
+    { status: 422, code: 'VALIDATION_ERROR', when: <><code>driverId</code> is missing or not an integer.</> },
+    { status: 500, code: 'INTERNAL_SERVER_ERROR', when: <>Unhandled server error.</> },
+  ]}
+/>
+
+## The reverse operation
+
+To undo this — put a cancelled order back to Delivered — see
+[Restore to Delivered](/api/operations/orders/restore-to-delivered), which is restricted to super
+admins.

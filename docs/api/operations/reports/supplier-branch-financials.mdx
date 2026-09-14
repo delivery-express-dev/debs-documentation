@@ -1,0 +1,148 @@
+---
+id: supplier-branch-financials
+title: Get Supplier Branch Financial Report
+sidebar_label: Branch Financials
+sidebar_position: 4
+description: Paginated wallet movement report per supplier branch — credits, debits, order counts and closing balance for a date range.
+---
+
+# Get Supplier Branch Financial Report
+
+<Endpoint
+  method="GET"
+  path="/api/v1/web-app/reports/supplier-branch-financials"
+  auth="Bearer token"
+  permission="read-supplier_financial_report"
+/>
+
+Returns a paginated row per supplier branch summarising wallet movement over a date range: what was
+credited, what was debited, how many orders were involved, and the closing balance.
+
+Use it for billing and branch reconciliation.
+
+## Query parameters
+
+<ParamTable
+  params={[
+    { name: 'start_date', type: 'string (date)', required: true, description: 'Start of the reporting period, YYYY-MM-DD.', example: '2026-09-01' },
+    { name: 'end_date', type: 'string (date)', required: true, description: 'End of the reporting period, YYYY-MM-DD.', example: '2026-09-30' },
+    { name: 'limit', type: 'integer', required: false, default: '8', description: 'Page size, between 1 and 200.', example: '50' },
+    { name: 'offset', type: 'integer', required: false, default: '0', description: 'Records to skip.', example: '50' },
+    { name: 'noPage', type: 'boolean', required: false, default: 'false', description: 'If true, return every branch without pagination.', example: 'true' },
+  ]}
+/>
+
+## Request example
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="cURL">
+
+```bash
+curl --request GET \
+  --url 'https://sandboxapi.allowmena.com/api/v1/web-app/reports/supplier-branch-financials?start_date=2026-09-01&end_date=2026-09-30&limit=50' \
+  --header 'Authorization: Bearer YOUR_TOKEN'
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+import os
+import requests
+
+response = requests.get(
+    "https://sandboxapi.allowmena.com/api/v1/web-app/reports/supplier-branch-financials",
+    headers={"Authorization": f"Bearer {os.environ['ALLOW_TOKEN']}"},
+    params={"start_date": "2026-09-01", "end_date": "2026-09-30", "limit": 50},
+    timeout=60,
+)
+response.raise_for_status()
+
+for row in response.json()["data"]:
+    print(row["supplierName"], row["branchName"], row["closingBalance"])
+```
+
+</TabItem>
+<TabItem value="js" label="JavaScript">
+
+```javascript
+const url = new URL(
+  'https://sandboxapi.allowmena.com/api/v1/web-app/reports/supplier-branch-financials',
+);
+url.searchParams.set('start_date', '2026-09-01');
+url.searchParams.set('end_date', '2026-09-30');
+url.searchParams.set('limit', '50');
+
+const response = await fetch(url, {
+  headers: { Authorization: `Bearer ${process.env.ALLOW_TOKEN}` },
+});
+
+for (const row of (await response.json()).data) {
+  console.log(row.supplierName, row.branchName, row.closingBalance);
+}
+```
+
+</TabItem>
+</Tabs>
+
+## Response
+
+`200 OK`
+
+```json
+{
+  "status": true,
+  "status_code": 200,
+  "message": "Supplier branch financial report fetched successfully",
+  "data": [
+    {
+      "branchName": "Salmiya",
+      "supplierName": "Bright Foods",
+      "contactPerson": "Noor Hassan",
+      "mobile": "55112233",
+      "openingBalance": 120.5,
+      "debitedAmount": 340.75,
+      "creditedAmount": 500.0,
+      "orderCount": 214,
+      "closingBalance": 279.75
+    }
+  ],
+  "links": { "limit": 50, "offset": 0, "next": null, "previous": null },
+  "count": 1
+}
+```
+
+<ParamTable
+  title="data[] fields"
+  params={[
+    { name: 'branchName', type: 'string', required: true, description: 'Title of the supplier branch.' },
+    { name: 'supplierName', type: 'string', required: true, description: 'Title of the supplier.' },
+    { name: 'contactPerson', type: 'string', required: true, description: 'Contact person for the branch.' },
+    { name: 'mobile', type: 'string', required: true, description: 'Branch mobile number.' },
+    { name: 'openingBalance', type: 'number', required: true, description: 'Total credited to the branch wallet during the reporting period.' },
+    { name: 'debitedAmount', type: 'number', required: true, description: 'Total debited from the branch wallet during the reporting period.' },
+    { name: 'creditedAmount', type: 'number', required: true, description: 'Total credited to the branch wallet during the reporting period.' },
+    { name: 'orderCount', type: 'integer', required: true, description: 'Orders associated with the branch during the reporting period.' },
+    { name: 'closingBalance', type: 'number', required: true, description: 'Wallet balance at the end of the reporting period.' },
+  ]}
+/>
+
+:::caution `openingBalance` and `creditedAmount` carry the same description in the schema
+Both fields are documented in the backend as "total amount credited to the supplier branch wallet
+during the selected reporting period". They are declared as separate fields and returned separately,
+but the backend does not distinguish their meaning in its own schema. Confirm with the finance team
+which one your reconciliation should use before relying on `openingBalance` as a period-opening
+figure. See the [coverage audit](/coverage#could-not-be-verified).
+:::
+
+## Errors
+
+<ErrorTable
+  errors={[
+    { status: 401, code: 'TOKEN_MISSING', when: <>No <code>Authorization</code> header.</> },
+    { status: 401, code: 'TOKEN_EXPIRED', when: <>The access token has expired.</> },
+    { status: 403, code: 'FORBIDDEN', when: <>The token lacks <code>read-supplier_financial_report</code>.</> },
+    { status: 422, code: 'VALIDATION_ERROR', when: <>A required date is missing or not <code>YYYY-MM-DD</code>, or <code>limit</code> is outside 1–200.</> },
+    { status: 500, code: 'INTERNAL_SERVER_ERROR', when: <>Unhandled server error.</> },
+  ]}
+/>

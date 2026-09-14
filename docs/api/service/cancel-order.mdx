@@ -1,0 +1,152 @@
+---
+id: cancel-order
+title: Cancel Order (Service)
+sidebar_label: Cancel Order
+sidebar_position: 4
+description: Cancel an order through the Allow MENA internal service API, with an optional cancellation reason and correlation id.
+---
+
+# Cancel Order (Service)
+
+<Endpoint method="POST" path="/api/v1/internal/orders/{order_id}/cancel" auth="X-API-Key header" />
+
+Cancels a single order. The request is forwarded to Delivery Core, which owns order cancellation —
+so the outcomes you see here are Core's, carried back through the service's
+[structured error envelope](/getting-started/errors#structured-envelope).
+
+## Path parameters
+
+<ParamTable
+  params={[
+    { name: 'order_id', type: 'integer', required: true, description: 'The platform order id to cancel.', example: '19444' },
+  ]}
+/>
+
+## Headers
+
+<ParamTable
+  params={[
+    { name: 'X-API-Key', type: 'string', required: true, description: 'The shared service key.' },
+    { name: 'X-Correlation-ID', type: 'string (uuid)', required: false, description: 'Ties your request to the platform logs. If omitted, the service generates one per request — but does not return it, so send your own when you need to correlate later.' },
+  ]}
+/>
+
+## Request body
+
+The body is required, but every field in it is optional — send `{}` to cancel without a reason.
+
+<ParamTable
+  params={[
+    { name: 'reason', type: 'string', required: false, description: 'Why the order is being cancelled. Recorded against the cancellation.', example: '"Customer changed their mind"' },
+  ]}
+/>
+
+:::note Reconstructed schema
+The cancel request and response models live in the shared `allow-fastapi-tools` package, which is
+published to a private registry. The version available when this documentation was written predates
+these two models, so their shape was reconstructed from the service's own tests: `reason` is the
+only field, and an empty body `{}` is accepted. Treat the field list as verified for `reason` and
+**unconfirmed for any additional field**. See the [coverage audit](/coverage#could-not-be-verified).
+:::
+
+## Request example
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="cURL">
+
+```bash
+curl --request POST \
+  --url 'https://sandboxapi.allowmena.com/api/v1/internal/orders/19444/cancel' \
+  --header 'X-API-Key: YOUR_SERVICE_KEY' \
+  --header 'X-Correlation-ID: 11111111-2222-3333-4444-555555555555' \
+  --header 'Content-Type: application/json' \
+  --data '{ "reason": "Customer changed their mind" }'
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+import os
+import uuid
+import requests
+
+response = requests.post(
+    "https://sandboxapi.allowmena.com/api/v1/internal/orders/19444/cancel",
+    headers={
+        "X-API-Key": os.environ["ALLOW_SERVICE_KEY"],
+        "X-Correlation-ID": str(uuid.uuid4()),
+        "Content-Type": "application/json",
+    },
+    json={"reason": "Customer changed their mind"},
+    timeout=30,
+)
+response.raise_for_status()
+
+print(response.json()["data"]["orderId"])
+```
+
+</TabItem>
+<TabItem value="js" label="JavaScript">
+
+```javascript
+const response = await fetch(
+  'https://sandboxapi.allowmena.com/api/v1/internal/orders/19444/cancel',
+  {
+    method: 'POST',
+    headers: {
+      'X-API-Key': process.env.ALLOW_SERVICE_KEY,
+      'X-Correlation-ID': crypto.randomUUID(),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ reason: 'Customer changed their mind' }),
+  },
+);
+
+const body = await response.json();
+console.log(body.data.orderId);
+```
+
+</TabItem>
+</Tabs>
+
+## Response
+
+`200 OK`
+
+```json
+{
+  "status": true,
+  "status_code": 200,
+  "message": "Order cancelled successfully.",
+  "data": {
+    "orderId": 19444
+  }
+}
+```
+
+<ParamTable
+  title="data fields"
+  params={[
+    { name: 'orderId', type: 'integer', required: true, description: 'The order that was cancelled.' },
+  ]}
+/>
+
+## Errors
+
+<ErrorTable
+  errors={[
+    { status: 401, code: 'API_KEY_MISSING', when: <>No <code>X-API-Key</code> header.</> },
+    { status: 401, code: 'INVALID_API_KEY', when: <>The key does not match the configured service key.</> },
+    { status: 404, code: 'NOT_FOUND', when: <>No order with that id.</> },
+    { status: 409, code: 'CONFLICT', when: <>The order is already cancelled, or already delivered.</> },
+    { status: 422, code: 'VALIDATION_ERROR', when: <>The body was not valid JSON, or carried an unexpected field.</> },
+    { status: 500, code: 'INTERNAL_SERVER_ERROR', when: <>Unhandled server error, or Delivery Core was unreachable.</> },
+  ]}
+/>
+
+:::caution Error statuses are Core's, relayed
+Because this endpoint proxies to Delivery Core, its failure modes track Core's cancellation rules —
+the same ones documented under [Cancel Orders](/api/partner/cancel-orders#per-order-outcomes). The
+list above reflects those rules as the service relays them.
+:::

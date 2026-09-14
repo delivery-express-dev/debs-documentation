@@ -1,0 +1,91 @@
+---
+id: overview
+title: Webhooks overview
+sidebar_label: Overview
+sidebar_position: 1
+description: How Allow MENA Delivery pushes order and driver events to your endpoint, and how to configure and consume them.
+---
+
+# Webhooks
+
+Webhooks are how the platform tells you what is happening to an order without you polling
+[Track Order](/api/partner/track-order) in a loop.
+
+The direction is reversed from the rest of this documentation: **Allow MENA calls your server.**
+
+## The two webhooks
+
+| Webhook | Fires when |
+| --- | --- |
+| [Driver Assigned](/api/webhooks/driver-assigned) | A driver is assigned to your order — once per assignment, including reassignments. |
+| [Order Status](/api/webhooks/order-status) | The order moves to a new status, including cancellation. |
+
+## Configuration
+
+Webhook delivery is configured **per supplier branch** by the Allow MENA team, not through a public
+API. For each branch you provide:
+
+| Setting | Notes |
+| --- | --- |
+| Order-status URL | Where [Order Status](/api/webhooks/order-status) callbacks are sent. |
+| Driver-assign URL | Where [Driver Assigned](/api/webhooks/driver-assigned) callbacks are sent. |
+| Headers | Optional fixed headers sent with every callback — this is where a shared secret or bearer token for **your** endpoint goes. |
+| Protocol | `REST` (JSON over HTTP) or `SOAP`. Everything on these pages describes REST. |
+
+A branch with no URL configured simply receives no callbacks; orders are unaffected.
+
+## What to expect on your endpoint
+
+- **Method:** `POST` (`PUT` is also supported by the dispatcher if configured).
+- **Body:** JSON, always wrapped in a single top-level `data` object.
+- **Headers:** whatever fixed headers were configured for your branch, plus the usual HTTP headers.
+
+Respond quickly with a `2xx`. Do your own processing asynchronously — a slow endpoint delays the
+platform's dispatcher.
+
+## Matching a callback to your order
+
+Every payload carries **both** identifiers:
+
+- `order_id` — the platform's id, the same one [Create Order](/api/partner/create-order-v3) returned.
+- `supplier_reference_id` — the reference *you* supplied when creating the order.
+
+Match on whichever your system stores. Because `supplier_reference_id` is echoed back, you do not
+need to keep a lookup table of platform ids.
+
+:::caution `supplier_reference_id` is not enforced as unique
+The platform does not prevent two orders sharing a reference — see
+[retries and duplicates](/api/partner/create-order-v3#retries-and-duplicates). If you match callbacks
+on the reference alone, a duplicated reference will make two orders' callbacks look like one order's.
+Matching on `order_id` avoids this.
+:::
+
+## Security
+
+There is **no signature header** on these callbacks — no HMAC, no timestamp, nothing to verify the
+sender cryptographically. To secure your endpoint:
+
+1. Ask for a **secret header** to be configured for your branch, and reject requests that do not
+   carry it.
+2. Serve the endpoint over **HTTPS** only.
+3. Treat the payload as a **notification, not as truth**. For anything that moves money or releases
+   goods, confirm against [Track Order](/api/partner/track-order) before acting.
+
+## Delivery guarantees
+
+:::warning Design for at-least-once, and for loss
+The dispatcher fires callbacks as events happen. The backend does not expose a webhook retry
+schedule, a delivery log you can query, or a replay endpoint — so treat delivery as **best-effort**.
+
+Two consequences for your integration:
+
+- **Make your handler idempotent.** Receiving the same status twice must not double-process an order.
+- **Reconcile periodically.** Poll [Track Order](/api/partner/track-order) for orders that have gone
+  quiet, rather than assuming the absence of a callback means no change.
+:::
+
+## Ordering
+
+Callbacks are not guaranteed to arrive in status order. Guard against regressions: if you have
+already recorded `delivered`, ignore a late `picked_up`. Compare against the status you hold rather
+than overwriting it blindly.

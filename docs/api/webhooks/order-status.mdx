@@ -1,0 +1,168 @@
+---
+id: order-status
+title: "Webhook: Order Status"
+sidebar_label: Order Status
+sidebar_position: 2
+description: The callback Allow MENA Delivery sends to your endpoint whenever one of your orders changes status.
+---
+
+# Webhook: Order Status
+
+<Endpoint method="POST" path="Your configured order-status URL" auth="Your configured headers" />
+
+Sent when one of your orders moves to a new status — picked up, delivered, cancelled, and the
+transitions between. This is the callback that keeps your order records in step with reality.
+
+It carries the new status and, when the change came with an explanation (a cancellation reason, for
+example), that text in `notes`.
+
+## Request body
+
+The platform sends this to **you**.
+
+```json
+{
+  "data": {
+    "supplier_reference_id": "SHOP-1001",
+    "order_id": 19444,
+    "order_status": {
+      "name": "Picked Up",
+      "slug": "picked_up"
+    },
+    "notes": ""
+  }
+}
+```
+
+<ParamTable
+  params={[
+    { name: 'data', type: 'object', required: true, description: 'Wrapper. Every field below is nested inside it.' },
+    { name: 'data.supplier_reference_id', type: 'string', required: true, description: 'The reference you supplied on Create Order.', example: '"SHOP-1001"' },
+    { name: 'data.order_id', type: 'integer', required: true, description: 'The platform order id.', example: '19444' },
+    { name: 'data.order_status', type: 'object', required: true, description: "The order's new status." },
+    { name: 'data.order_status.name', type: 'string', required: true, description: 'Display label.', example: '"Picked Up"' },
+    { name: 'data.order_status.slug', type: 'string', required: true, description: <>Stable machine-readable status. Branch on this. See <a href="/concepts/enumerations#order-status">Order status</a>.</>, example: '"picked_up"' },
+    { name: 'data.notes', type: 'string', required: true, description: 'Explanatory text for the change — for a cancellation, the reason submitted to Cancel Orders. Empty string when there is nothing to add; never null, never omitted.', example: '"Customer changed their mind"' },
+  ]}
+/>
+
+## Status values
+
+`slug` takes one of the platform's order statuses. The ones you are most likely to receive:
+
+| `slug` | `name` | Meaning |
+| --- | --- | --- |
+| `assigned` | Assigned | A driver took the order. |
+| `driver_reached` | Driver Reached | The driver is at the pickup point. |
+| `picked_up` | Picked Up | The driver has the goods. |
+| `in_progress` | In Progress | On the way to the customer. |
+| `delivered` | Delivered | Handed over. Terminal. |
+| `cancelled` | Cancelled | Withdrawn. Terminal. `notes` carries the reason. |
+| `hold` | Hold | Paused — paused deliveries suppress driver details on [Track Order](/api/partner/track-order). |
+| `re_assigned` | Re-Assigned | Moved to a different driver. |
+
+See [Enumerations](/concepts/enumerations#order-status) for the complete list, including the
+pre-dispatch statuses `created`, `pending`, `scheduled` and `stacked`.
+
+## Handling it
+
+<Tabs groupId="lang">
+<TabItem value="python" label="Python (Flask)">
+
+```python
+import os
+from flask import Flask, request, jsonify
+
+app = Flask(__name__)
+
+TERMINAL = {"delivered", "cancelled"}
+
+
+@app.post("/webhooks/allow/order-status")
+def order_status():
+    # No signature is sent — authenticate with the fixed header configured for
+    # your branch, and reject anything without it.
+    if request.headers.get("X-Webhook-Secret") != os.environ["ALLOW_WEBHOOK_SECRET"]:
+        return jsonify(ok=False), 401
+
+    payload = request.get_json(silent=True) or {}
+    data = payload.get("data") or {}
+
+    order_id = data.get("order_id")
+    slug = (data.get("order_status") or {}).get("slug")
+    if order_id is None or slug is None:
+        return jsonify(ok=False), 400
+
+    order = lookup_order(order_id)
+    if order is None:
+        # Unknown order: acknowledge so the platform stops resending.
+        return jsonify(ok=True), 200
+
+    # Idempotent, and resistant to out-of-order delivery: never move an order
+    # backwards out of a terminal state.
+    if order.status not in TERMINAL and order.status != slug:
+        order.status = slug
+        order.cancellation_reason = data.get("notes") or None
+        order.save()
+
+    return jsonify(ok=True), 200
+```
+
+</TabItem>
+<TabItem value="js" label="JavaScript (Express)">
+
+```javascript
+import express from 'express';
+
+const app = express();
+app.use(express.json());
+
+const TERMINAL = new Set(['delivered', 'cancelled']);
+
+app.post('/webhooks/allow/order-status', async (req, res) => {
+  // No signature is sent — authenticate with the fixed header configured for
+  // your branch, and reject anything without it.
+  if (req.get('X-Webhook-Secret') !== process.env.ALLOW_WEBHOOK_SECRET) {
+    return res.status(401).json({ ok: false });
+  }
+
+  const data = req.body?.data ?? {};
+  const orderId = data.order_id;
+  const slug = data.order_status?.slug;
+  if (orderId == null || slug == null) {
+    return res.status(400).json({ ok: false });
+  }
+
+  const order = await lookupOrder(orderId);
+  // Unknown order: acknowledge so the platform stops resending.
+  if (!order) return res.status(200).json({ ok: true });
+
+  // Idempotent, and resistant to out-of-order delivery.
+  if (!TERMINAL.has(order.status) && order.status !== slug) {
+    order.status = slug;
+    order.cancellationReason = data.notes || null;
+    await order.save();
+  }
+
+  return res.status(200).json({ ok: true });
+});
+```
+
+</TabItem>
+</Tabs>
+
+## Response the platform expects
+
+Return `2xx` as soon as you have accepted the payload. Queue your own work rather than doing it
+inline — a slow endpoint holds up the dispatcher.
+
+## Differences from the published Postman collection
+
+:::warning The collection's example status is not a real status
+The collection's example body shows `{"name": "Picked", "slug": "picked"}`. Neither value exists in
+the backend. The real status for that transition is `{"name": "Picked Up", "slug": "picked_up"}`.
+
+The collection's prose gets it right — it lists `picked_up`, `driver_reached` and `delivered` — but
+the JSON sample does not. Do not build a `slug` allow-list from that sample; use
+[Enumerations](/concepts/enumerations#order-status).
+:::

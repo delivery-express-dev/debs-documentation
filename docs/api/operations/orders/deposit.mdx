@@ -1,0 +1,157 @@
+---
+id: deposit
+title: Confirm Deposit
+sidebar_label: Confirm Deposit
+sidebar_position: 3
+description: Confirm that an Allow MENA driver has deposited the cash for a set of delivered orders, settling them all at once.
+---
+
+# Confirm Deposit
+
+<Endpoint
+  method="POST"
+  path="/api/v1/web-app/orders/deposit"
+  auth="Bearer token"
+  permission="create-order_deposit"
+/>
+
+Confirms that a driver has deposited the cash covering several orders at once. Each selected order is
+marked cash-collected via the Deposit method, and a Credit transaction linked to each order is
+recorded on the driver's wallet.
+
+This is the batch counterpart to [Collect Cash](/api/operations/orders/collect-cash), and the action
+that follows [List Deposit-Eligible Orders](/api/operations/orders/deposit-eligible).
+
+:::tip The amount is computed server-side
+You do **not** send a deposit total. The platform sums the selected orders' amounts due on delivery
+itself, precisely so a client cannot under- or over-state the deposit. The computed figure comes back
+in the response.
+:::
+
+## Request body
+
+<ParamTable
+  params={[
+    { name: 'driverId', type: 'integer', required: true, description: 'The driver making the deposit. Must be 1 or greater. Every selected order must be assigned to this driver.', example: '7' },
+    { name: 'orderIds', type: 'array<integer>', required: true, description: <>The orders being settled. Take these from <a href="/api/operations/orders/deposit-eligible">List Deposit-Eligible Orders</a>.</>, example: '[19444, 19445]' },
+    { name: 'notes', type: 'string', required: false, description: 'Free-text note recorded against the deposit — a reference number, or who received the cash.', example: '"Counted at Salmiya office"' },
+  ]}
+/>
+
+## Request example
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="cURL">
+
+```bash
+curl --request POST \
+  --url 'https://sandboxapi.allowmena.com/api/v1/web-app/orders/deposit' \
+  --header 'Authorization: Bearer YOUR_TOKEN' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "driverId": 7,
+    "orderIds": [19444, 19445],
+    "notes": "Counted at Salmiya office"
+  }'
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+import os
+import requests
+
+response = requests.post(
+    "https://sandboxapi.allowmena.com/api/v1/web-app/orders/deposit",
+    headers={
+        "Authorization": f"Bearer {os.environ['ALLOW_TOKEN']}",
+        "Content-Type": "application/json",
+    },
+    # No amount is sent — the platform computes it from the selected orders.
+    json={
+        "driverId": 7,
+        "orderIds": [19444, 19445],
+        "notes": "Counted at Salmiya office",
+    },
+    timeout=30,
+)
+response.raise_for_status()
+
+deposit = response.json()["data"]
+print(f"deposited {deposit['amount']} across {len(deposit['orderIds'])} orders")
+```
+
+</TabItem>
+<TabItem value="js" label="JavaScript">
+
+```javascript
+const response = await fetch('https://sandboxapi.allowmena.com/api/v1/web-app/orders/deposit', {
+  method: 'POST',
+  headers: {
+    Authorization: `Bearer ${process.env.ALLOW_TOKEN}`,
+    'Content-Type': 'application/json',
+  },
+  // No amount is sent — the platform computes it from the selected orders.
+  body: JSON.stringify({
+    driverId: 7,
+    orderIds: [19444, 19445],
+    notes: 'Counted at Salmiya office',
+  }),
+});
+
+const deposit = (await response.json()).data;
+console.log(`deposited ${deposit.amount} across ${deposit.orderIds.length} orders`);
+```
+
+</TabItem>
+</Tabs>
+
+## Response
+
+`200 OK`
+
+```json
+{
+  "status": true,
+  "status_code": 200,
+  "message": "Deposit recorded successfully",
+  "data": {
+    "driverId": 7,
+    "orderIds": [19444, 19445],
+    "amount": "91.000",
+    "notes": "Counted at Salmiya office"
+  }
+}
+```
+
+<ParamTable
+  title="data fields"
+  params={[
+    { name: 'driverId', type: 'integer', required: true, description: 'The driver the deposit was recorded for.' },
+    { name: 'orderIds', type: 'array<integer>', required: true, description: 'The orders settled by this deposit.' },
+    { name: 'amount', type: 'string (decimal)', required: true, description: 'Total deposited, computed server-side as the sum of the settled orders.' },
+    { name: 'notes', type: 'string | null', required: false, description: 'The note recorded, if one was provided.' },
+  ]}
+/>
+
+## Errors
+
+Every order in the request is validated before anything is recorded — the error messages name the
+specific order that failed.
+
+<ErrorTable
+  errors={[
+    { status: 400, code: 'INVALID_OPERATION', when: <><code>Order(s) not found: …</code> — one or more ids do not exist. The message lists them.</> },
+    { status: 400, code: 'INVALID_OPERATION', when: <><code>Order {'{id}'} is not assigned to the selected driver.</code></> },
+    { status: 400, code: 'INVALID_OPERATION', when: <><code>Order {'{id}'} is not a Cash on Delivery order.</code></> },
+    { status: 400, code: 'INVALID_OPERATION', when: <><code>Order {'{id}'} has not been delivered.</code></> },
+    { status: 400, code: 'INVALID_OPERATION', when: <><code>Order {'{id}'} has no Debit transaction to settle.</code></> },
+    { status: 400, code: 'INVALID_OPERATION', when: <><code>Order {'{id}'} has no amount due on delivery.</code></> },
+    { status: 401, code: 'TOKEN_MISSING', when: <>No <code>Authorization</code> header.</> },
+    { status: 403, code: 'FORBIDDEN', when: <>The token lacks <code>create-order_deposit</code>.</> },
+    { status: 409, code: 'CONFLICT', when: <><code>Cash has already been collected for order {'{id}'}.</code> Refresh the eligible list and reselect.</> },
+    { status: 422, code: 'VALIDATION_ERROR', when: <><code>driverId</code> below 1, <code>orderIds</code> missing, or a non-integer id.</> },
+    { status: 500, code: 'INTERNAL_SERVER_ERROR', when: <>Unhandled server error.</> },
+  ]}
+/>

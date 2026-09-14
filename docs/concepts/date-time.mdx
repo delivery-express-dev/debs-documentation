@@ -1,0 +1,74 @@
+---
+id: date-time
+title: Date & time
+sidebar_label: Date & Time
+sidebar_position: 3
+description: The date and time formats accepted and returned by the Allow MENA Delivery API, and how timezones are handled.
+---
+
+# Date & time
+
+The platform uses several date and time representations. Which one applies depends on the field, so
+check the endpoint page rather than assuming.
+
+## Formats in use
+
+| Format | Example | Where |
+| --- | --- | --- |
+| `YYYY-MM-DD` | `2026-09-01` | Report date ranges, `issue_date`, `restored_date` |
+| `YYYY-MM-DD HH:MM:SS` | `2026-11-01 15:00:00` | Partner scheduling (`delivery_time_slot_start` / `_end`) |
+| ISO 8601 with offset | `2026-11-01T15:00:00Z` | Service API `eta`, `deliveredAt` |
+| `HH:MM` | `08:30` | Attendance shift times and durations |
+
+## Timezones
+
+:::danger Partner scheduling times carry no timezone
+`delivery_time_slot_start` and `delivery_time_slot_end` on
+[Create Order](/api/partner/create-order-v3#schedule-object) are parsed as **naive local server
+time**, with the format `%Y-%m-%d %H:%M:%S` and nothing else.
+
+Appending `Z`, an offset like `+03:00`, or using a `T` separator all fail with
+`Invalid datetime format for 'delivery_time_slot_start'`. Send exactly
+`2026-11-01 15:00:00`.
+
+Because the value is interpreted in the platform's own timezone, a client in a different zone must
+convert before sending — the API will not do it for you, and will not tell you it did not.
+:::
+
+Elsewhere the platform stores timestamps in UTC. The service API's `eta` field is a proper ISO 8601
+date-time and does accept an offset.
+
+## Scheduling constraints
+
+A scheduled partner order must satisfy both rules, or it is rejected:
+
+1. **`delivery_time_slot_start` must be far enough ahead.** The platform enforces a preparation and
+   pickup buffer, configured per deployment. A start time inside that buffer is rejected with a
+   message naming the earliest acceptable time — for example
+   `Please choose an 'delivery_time_slot_start' after 03:15 PM, Nov 01 2026`.
+2. **`delivery_time_slot_end` must be later than `delivery_time_slot_start`.**
+
+The buffer is configuration, not a fixed constant, so do not hard-code it. Read the earliest
+acceptable time from the rejection message, or pick a start time comfortably ahead.
+
+## Durations
+
+Durations are not uniform either:
+
+| Field | Unit | Where |
+| --- | --- | --- |
+| `estimated_time_of_delivery` | **Seconds** | [Track Order](/api/partner/track-order) |
+| `upcoming_status.estimated_time` | **Minutes** | [Driver Assigned webhook](/api/webhooks/driver-assigned) |
+| `estimated_time.pickup` | **Minutes** | [Driver Assigned webhook](/api/webhooks/driver-assigned) |
+| `*Minutes` fields | Minutes | [Driver Performance report](/api/operations/reports/driver-performance) |
+| `late_minutes` | Minutes | [Driver Attendance report](/api/operations/reports/driver-attendance) |
+| `break_duration`, `total_working_hours` | `HH:MM` **string** | [Driver Attendance report](/api/operations/reports/driver-attendance) |
+
+:::caution Tracking ETA is seconds; webhook ETAs are minutes
+The one field most likely to be misread is `estimated_time_of_delivery` on Track Order. A value of
+`520` means about nine minutes, not over eight hours. Divide by 60 before displaying.
+:::
+
+`estimated_time_of_delivery` is never negative — an order past its estimate reports `0`, and `0` is
+also what you get when no live estimate has been computed yet. The two cases are not distinguishable
+from the value alone; use `order_status.slug` for context.

@@ -1,0 +1,208 @@
+---
+id: cancel-orders
+title: Cancel Orders
+sidebar_label: Cancel Orders
+sidebar_position: 5
+description: Cancel one or more Allow MENA delivery orders in a single request, with a per-order outcome for each.
+---
+
+# Cancel Orders
+
+<Endpoint method="DELETE" path="/api/v2/external/orders" auth="x-api-key header" />
+
+Cancels one or more orders. Unlike create, this endpoint is **not** all-or-nothing: each order is
+attempted independently and you get a result row for every one, so a batch containing an
+already-delivered order still cancels the rest.
+
+Use it when a customer cancels, or when you need to withdraw an order you dispatched by mistake.
+Cancellation is only possible before the order reaches a terminal state — an order already
+`Cancelled` or `Delivered` is rejected with a per-order `409`.
+
+:::note The order id goes in the body, not the path
+This is a `DELETE` with a request body addressing a collection. There is no
+`DELETE /orders/{order_id}` form. Some HTTP clients strip bodies from `DELETE` requests by
+default — verify yours sends it.
+:::
+
+## Request body
+
+<ParamTable
+  title="Top level"
+  params={[
+    { name: 'orders', type: 'array<object>', required: true, description: 'The orders to cancel. Must contain at least one entry; an empty array is rejected.' },
+  ]}
+/>
+
+<ParamTable
+  title="orders[] entry"
+  params={[
+    { name: 'order_id', type: 'integer', required: true, description: <>Platform order id, as returned by <a href="/api/partner/create-order-v3">Create Order</a>. Duplicate ids within one request are cancelled once and reported once.</>, example: '19444' },
+    { name: 'reason', type: 'string', required: true, description: 'Why the order is being cancelled, at most 250 characters. Recorded in the order history and forwarded on the order-status webhook as notes. Must be a string, and must be present on every entry.', example: '"Customer changed their mind"' },
+  ]}
+/>
+
+## Request example
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="cURL">
+
+```bash
+curl --request DELETE \
+  --url 'https://sandboxapi.allowmena.com/api/v2/external/orders' \
+  --header 'x-api-key: YOUR_API_KEY' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "orders": [
+      { "order_id": 27040, "reason": "Customer changed their mind" },
+      { "order_id": 26285, "reason": "Out of stock" }
+    ]
+  }'
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+import os
+import requests
+
+response = requests.delete(
+    "https://sandboxapi.allowmena.com/api/v2/external/orders",
+    headers={"x-api-key": os.environ["ALLOW_API_KEY"], "Content-Type": "application/json"},
+    json={
+        "orders": [
+            {"order_id": 27040, "reason": "Customer changed their mind"},
+            {"order_id": 26285, "reason": "Out of stock"},
+        ]
+    },
+    timeout=30,
+)
+
+body = response.json()
+
+# 200 means every order cancelled; 207 means inspect each row.
+for result in body["data"]:
+    if result["status_code"] != 200:
+        print(f"order {result['order_id']} not cancelled: {result['message']}")
+```
+
+</TabItem>
+<TabItem value="js" label="JavaScript">
+
+```javascript
+const response = await fetch('https://sandboxapi.allowmena.com/api/v2/external/orders', {
+  method: 'DELETE',
+  headers: { 'x-api-key': process.env.ALLOW_API_KEY, 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    orders: [
+      { order_id: 27040, reason: 'Customer changed their mind' },
+      { order_id: 26285, reason: 'Out of stock' },
+    ],
+  }),
+});
+
+const body = await response.json();
+
+// 200 means every order cancelled; 207 means inspect each row.
+for (const result of body.data) {
+  if (result.status_code !== 200) {
+    console.warn(`order ${result.order_id} not cancelled: ${result.message}`);
+  }
+}
+```
+
+</TabItem>
+</Tabs>
+
+## Response
+
+The HTTP status tells you whether the batch was clean:
+
+- **`200 OK`** — every order in the batch was cancelled.
+- **`207 Multi-Status`** — at least one order failed. The batch was still processed; read each row.
+
+Both carry the same body shape.
+
+```json title="200 — all cancelled"
+{
+  "status": true,
+  "message": "Success",
+  "data": [
+    { "order_id": 27040, "status_code": 200, "message": "Order canceled successfully" },
+    { "order_id": 26285, "status_code": 200, "message": "Order canceled successfully" }
+  ]
+}
+```
+
+```json title="207 — partial success"
+{
+  "status": true,
+  "message": "Success",
+  "data": [
+    { "order_id": 27040, "status_code": 200, "message": "Order canceled successfully" },
+    { "order_id": 231231, "status_code": 404, "message": "Order not found" },
+    { "order_id": 26285, "status_code": 409, "message": "Order already cancelled" }
+  ]
+}
+```
+
+:::caution `status` is `true` even on a 207
+The top-level `status` reports that the batch was processed, not that every order succeeded. Always
+check the HTTP status, or each row's `status_code` — never just `status`.
+:::
+
+<ParamTable
+  title="data[] fields"
+  params={[
+    { name: 'order_id', type: 'integer', required: true, description: 'The order this row reports on.' },
+    { name: 'status_code', type: 'integer', required: true, values: ['200', '404', '409', '500'], description: 'Outcome for this order alone.' },
+    { name: 'message', type: 'string', required: true, description: 'Human-readable outcome.' },
+  ]}
+/>
+
+### Per-order outcomes
+
+<ErrorTable
+  errors={[
+    { status: 200, when: <><code>Order canceled successfully</code>.</> },
+    { status: 404, when: <><code>Order not found</code> — no such order id.</> },
+    { status: 409, when: <><code>Order already cancelled</code> — the order is already in the Cancelled state.</> },
+    { status: 409, when: <><code>Order already delivered</code> — delivered orders cannot be cancelled through this endpoint.</> },
+    { status: 500, when: <><code>Internal server error</code> — this order failed unexpectedly. The others in the batch were still processed.</> },
+  ]}
+/>
+
+## Request-level errors
+
+These reject the whole request; no order is cancelled and there is no `data` array.
+
+<ErrorTable
+  errors={[
+    { status: 400, when: <><code>Invalid request</code> — the body failed validation: <code>orders</code> absent, an entry missing <code>order_id</code> or <code>reason</code>, a non-string <code>reason</code>, or a <code>reason</code> longer than 250 characters.</> },
+    { status: 400, when: <><code>The 'orders' field is required and cannot be empty. Please provide at least one order to cancel.</code> — <code>orders</code> was an empty array.</> },
+    { status: 401, when: <>Missing, unknown, revoked or expired <code>x-api-key</code>.</> },
+    { status: 500, when: <><code>Something went wrong</code> — unhandled server error.</> },
+  ]}
+/>
+
+## Side effects
+
+Cancelling an order does more than change its status:
+
+- The cancellation reason is written to the order history.
+- If a driver was assigned, they are unassigned and their workload counters are adjusted; remaining
+  orders on that driver's route have their ETAs recalculated.
+- **Refunds depend on how far the order got.** An order not yet picked up (or on hold) is refunded to
+  the branch wallet; once picked up, the delivery charge stands.
+- An [order-status webhook](/api/webhooks/order-status) fires, carrying your `supplier_reference_id`
+  and the cancellation reason in `notes`.
+
+## Differences from the published Postman collection
+
+:::warning
+The collection's **Cancel Order** example shows a `400` response body of
+`{"message": "Not a valid string.", "status": false}`. The current backend returns
+`{"status": false, "message": "Invalid request"}` for the same class of failure — the raw
+serializer text is no longer surfaced. The collection also omits the `x-api-key` header from this
+request, but the header is required.
+:::

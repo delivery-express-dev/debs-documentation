@@ -1,0 +1,55 @@
+---
+slug: /
+id: introduction
+title: Introduction
+sidebar_label: Introduction
+sidebar_position: 1
+hide_title: true
+description: REST API documentation for the Allow MENA Delivery platform — partner order integration, order tracking, webhooks, delivery operations and driver authentication.
+keywords: [allow mena, delivery api, order integration, logistics, kuwait delivery]
+---
+
+import Landing from '@site/src/components/Landing';
+
+<Landing />
+
+## What this API is
+
+Allow MENA Delivery is a last-mile delivery platform. This documentation covers every HTTP endpoint
+the platform exposes, grouped by who calls it:
+
+| Surface | Who calls it | Credential | Base path |
+| --- | --- | --- | --- |
+| [Partner Orders](/api/partner/overview) | Merchants and their order-management systems | `x-api-key` | `/api/v{1,2,3}/external` |
+| [Webhooks](/api/webhooks/overview) | The platform calls **you** | Configured per branch | Your URL |
+| [Service API](/api/service/overview) | Other Allow MENA services | `X-API-Key` | `/api/v1/internal` |
+| [Operations](/api/operations/overview) | The Allow MENA operations portal | Bearer JWT | `/api/v1/web-app` |
+| [Driver App](/api/driver/overview) | The driver mobile app | Bearer JWT | `/api/v1/driver` |
+
+If you are integrating a shop, a warehouse or an ERP with Allow MENA, **Partner Orders and Webhooks
+are the only two surfaces you need**. The rest are internal and documented here for the teams that
+build against them.
+
+## Who it is for
+
+- **Integration partners** — send orders to Allow MENA and receive status callbacks.
+- **Platform engineers** — build and maintain the operations portal and the driver app.
+- **Support and operations** — look up what a given endpoint does and what its errors mean.
+
+## How the documentation is organised
+
+- **[Getting Started](/getting-started/quickstart)** — base URLs, credentials, the shared request and
+  response shapes, and a working first request.
+- **[API Reference](/api/partner/overview)** — one page per endpoint, with parameters, request and
+  response examples, and the errors that endpoint can actually return.
+- **[Concepts](/concepts/pagination)** — behaviour that spans many endpoints: pagination, filtering,
+  date handling, permissions, and the enumerations used throughout.
+- **[Coverage audit](/coverage)** — every endpoint in the backend and in the Postman collection,
+  with its documentation status and any discrepancy found between the two.
+
+:::info Source of truth
+Every page here was written against the backend implementation — routers, serializers, Pydantic
+schemas and tests — not from a collection export. Where the published Postman collection and the
+backend disagree, this documentation follows the backend and records the difference on the
+[coverage audit](/coverage) page.
+:::

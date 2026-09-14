@@ -1,0 +1,154 @@
+---
+id: driver-assigned
+title: "Webhook: Driver Assigned"
+sidebar_label: Driver Assigned
+sidebar_position: 3
+description: The callback Allow MENA Delivery sends when a driver is assigned to your order, with the driver's contact details and pickup ETAs.
+---
+
+# Webhook: Driver Assigned
+
+<Endpoint method="POST" path="Your configured driver-assign URL" auth="Your configured headers" />
+
+Sent when a driver is assigned to one of your orders. It carries the driver's contact details and
+two estimates — when they will reach the pickup point, and when they will collect the order.
+
+Use it to show the customer who is bringing their delivery, and to give your pickup staff warning.
+
+## Request body
+
+The platform sends this to **you**.
+
+```json
+{
+  "data": {
+    "supplier_reference_id": "SHOP-1001",
+    "order_id": 19444,
+    "driver_details": {
+      "name": "John Smith",
+      "country_code": "+965",
+      "mobile": "55667788"
+    },
+    "upcoming_status": {
+      "name": "Driver Reached",
+      "slug": "driver_reached",
+      "estimated_time": 8
+    },
+    "estimated_time": {
+      "pickup": 30
+    }
+  }
+}
+```
+
+<ParamTable
+  params={[
+    { name: 'data', type: 'object', required: true, description: 'Wrapper. Every field below is nested inside it.' },
+    { name: 'data.supplier_reference_id', type: 'string', required: true, description: 'The reference you supplied on Create Order.', example: '"SHOP-1001"' },
+    { name: 'data.order_id', type: 'integer', required: true, description: 'The platform order id.', example: '19444' },
+    { name: 'data.driver_details', type: 'object', required: true, description: 'The assigned driver.' },
+    { name: 'data.driver_details.name', type: 'string', required: true, description: "The driver's full name.", example: '"John Smith"' },
+    { name: 'data.driver_details.country_code', type: 'string', required: true, description: 'Dialling code with a leading plus.', example: '"+965"' },
+    { name: 'data.driver_details.mobile', type: 'string', required: true, description: "The driver's mobile number, without the country code.", example: '"55667788"' },
+    { name: 'data.upcoming_status', type: 'object', required: true, description: <>The next status to expect. After an assignment this is <strong>always</strong> Driver Reached — see <a href="#upcoming_status-is-always-driver-reached">below</a>.</> },
+    { name: 'data.upcoming_status.name', type: 'string', required: true, description: 'Display label.', example: '"Driver Reached"' },
+    { name: 'data.upcoming_status.slug', type: 'string', required: true, description: 'Machine-readable status.', example: '"driver_reached"' },
+    { name: 'data.upcoming_status.estimated_time', type: 'integer', required: true, description: 'Minutes until the driver reaches the pickup location.', example: '8' },
+    { name: 'data.estimated_time', type: 'object', required: true, description: 'Route estimates.' },
+    { name: 'data.estimated_time.pickup', type: 'integer', required: true, description: 'Minutes until the order is expected to be picked up. Later than upcoming_status.estimated_time — the driver arrives first, then collects.', example: '30' },
+  ]}
+/>
+
+:::caution These ETAs are in minutes
+Both `upcoming_status.estimated_time` and `estimated_time.pickup` are **minutes**. The
+`estimated_time_of_delivery` field on [Track Order](/api/partner/track-order) is **seconds**. The
+two are not interchangeable.
+:::
+
+### `upcoming_status` is always Driver Reached
+
+The field looks general but is not: after an assignment the next transition is always *Driver
+Reached*, and the platform hard-codes it. Do not build a state machine expecting other values here —
+subsequent transitions arrive on the
+[Order Status webhook](/api/webhooks/order-status) instead.
+
+## Reassignments
+
+This webhook fires **again** if the order moves to a different driver. Treat it as "the current
+driver is now X", replacing whatever you held, rather than as a one-time event.
+
+## Handling it
+
+<Tabs groupId="lang">
+<TabItem value="python" label="Python (Flask)">
+
+```python
+import os
+from flask import Flask, request, jsonify
+
+app = Flask(__name__)
+
+
+@app.post("/webhooks/allow/driver-assigned")
+def driver_assigned():
+    # No signature is sent — authenticate with the fixed header configured for
+    # your branch.
+    if request.headers.get("X-Webhook-Secret") != os.environ["ALLOW_WEBHOOK_SECRET"]:
+        return jsonify(ok=False), 401
+
+    data = (request.get_json(silent=True) or {}).get("data") or {}
+
+    order = lookup_order(data.get("order_id"))
+    if order is None:
+        return jsonify(ok=True), 200
+
+    driver = data.get("driver_details") or {}
+    # Fires again on reassignment: overwrite rather than append.
+    order.driver_name = driver.get("name")
+    order.driver_phone = f"{driver.get('country_code', '')}{driver.get('mobile', '')}"
+    order.pickup_eta_minutes = (data.get("estimated_time") or {}).get("pickup")
+    order.save()
+
+    return jsonify(ok=True), 200
+```
+
+</TabItem>
+<TabItem value="js" label="JavaScript (Express)">
+
+```javascript
+import express from 'express';
+
+const app = express();
+app.use(express.json());
+
+app.post('/webhooks/allow/driver-assigned', async (req, res) => {
+  // No signature is sent — authenticate with the fixed header configured for
+  // your branch.
+  if (req.get('X-Webhook-Secret') !== process.env.ALLOW_WEBHOOK_SECRET) {
+    return res.status(401).json({ ok: false });
+  }
+
+  const data = req.body?.data ?? {};
+
+  const order = await lookupOrder(data.order_id);
+  if (!order) return res.status(200).json({ ok: true });
+
+  const driver = data.driver_details ?? {};
+  // Fires again on reassignment: overwrite rather than append.
+  order.driverName = driver.name;
+  order.driverPhone = `${driver.country_code ?? ''}${driver.mobile ?? ''}`;
+  order.pickupEtaMinutes = data.estimated_time?.pickup;
+  await order.save();
+
+  return res.status(200).json({ ok: true });
+});
+```
+
+</TabItem>
+</Tabs>
+
+## Consistency with the published Postman collection
+
+The collection's example payload for this webhook **matches the backend exactly**, field for field.
+The only cosmetic difference is that the collection's sample writes `estimated_time.pickup` as the
+string `"30"`; the platform sends it as the number `30`.

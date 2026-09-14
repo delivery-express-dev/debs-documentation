@@ -1,0 +1,122 @@
+---
+id: permissions
+title: Permissions
+sidebar_label: Permissions
+sidebar_position: 4
+description: How feature codes authorise calls to the Allow MENA operations API, and the full list of codes with the endpoints they grant.
+---
+
+# Permissions
+
+Permissions apply only to the [Operations API](/api/operations/overview) (`/api/v1/web-app`). The
+partner, service and driver surfaces authorise by credential alone and have no permission model.
+
+## How it works
+
+A portal user's access token carries a `features` claim — the list of feature codes granted to them:
+
+```json
+{
+  "id": 7,
+  "user_type": 1,
+  "features": ["read-supplier", "update-supplier"],
+  "exp": 1721476800
+}
+```
+
+Each endpoint declares the codes it accepts. On every request the platform intersects the two sets:
+
+1. If the caller is the **super admin** (user id `1`), access is granted regardless of `features`.
+2. Otherwise, if **any one** of the endpoint's codes is in `features`, access is granted.
+3. Otherwise the request fails with `403 FORBIDDEN`.
+
+:::note Multiple codes mean "any one of these", not "all of them"
+[Get Supplier](/api/operations/suppliers/get-supplier) accepts `read-supplier`, `create-supplier`
+**or** `update-supplier`. Holding any single one is enough. This is why the read endpoint behind an
+edit screen is reachable by users who can only edit.
+:::
+
+## Super admin
+
+The user whose id is `1` is treated as the super admin and bypasses every feature check. One
+endpoint goes further and is reachable **only** by that user:
+
+| Endpoint | Gate |
+| --- | --- |
+| [Restore to Delivered](/api/operations/orders/restore-to-delivered) | Super admin only — no feature code grants it |
+
+## The codes
+
+Thirty-six feature codes exist. Most follow a `verb-resource` convention — `read-`, `create-`,
+`update-`, `delete-`, `restore-` — with one exception, `cancel-after-delivery`, which is
+hyphen-separated throughout rather than using an underscore in the resource part.
+
+### Codes used by documented endpoints
+
+| Code | Grants |
+| --- | --- |
+| `read-supplier` | [List Suppliers](/api/operations/suppliers/list-suppliers), [Get Supplier](/api/operations/suppliers/get-supplier), [Business Types](/api/operations/reference-data#business-types) |
+| `create-supplier` | [Create Supplier](/api/operations/suppliers/create-supplier), Get Supplier, Business Types |
+| `update-supplier` | [Update Supplier](/api/operations/suppliers/update-supplier), Get Supplier, Business Types |
+| `delete-supplier` | [Delete Supplier](/api/operations/suppliers/delete-supplier) |
+| `read-issued_items` | [List](/api/operations/issued-items/list-issued-items) and [Get Issued Item](/api/operations/issued-items/get-issued-item), [Item Categories](/api/operations/reference-data#item-categories) |
+| `create-issued_items` | [Create Issued Item](/api/operations/issued-items/create-issued-item) |
+| `update-issued_items` | [Update Issued Item](/api/operations/issued-items/update-issued-item) |
+| `read-driver_issued_items` | [List Driver Issued Items](/api/operations/driver-issued-items/list-driver-issued-items) |
+| `create-driver_issued_items` | [Issue Item to Driver](/api/operations/driver-issued-items/create-driver-issued-item) |
+| `restore-driver_issued_items` | [Restore Driver Issued Item](/api/operations/driver-issued-items/restore-driver-issued-item) |
+| `create-order_cash_collect` | [Confirm Cash Collection](/api/operations/orders/collect-cash) |
+| `read-order_deposit` | [List Deposit-Eligible Orders](/api/operations/orders/deposit-eligible) |
+| `create-order_deposit` | [Confirm Deposit](/api/operations/orders/deposit) |
+| `cancel-after-delivery` | [Cancel After Delivery](/api/operations/orders/cancel-after-delivery) |
+| `read-driver_attendance_report` | [Driver Attendance Report](/api/operations/reports/driver-attendance) |
+| `read-supplier_financial_report` | [Branch Financials Report](/api/operations/reports/supplier-branch-financials) |
+| `read-driver_performance_report` | [Driver Performance Report](/api/operations/reports/driver-performance), [Report Drivers](/api/operations/reports/driver-performance-drivers) |
+| `create-order` | [Resolve Location](/api/operations/resolve-location), [Payment Types](/api/operations/reference-data#payment-types), [States](/api/operations/reference-data#states) |
+| `read-order` | [Order Status](/api/operations/reference-data#order-status) |
+| `create-driver` / `update-driver` | [Driver Types](/api/operations/reference-data#driver-types), [States](/api/operations/reference-data#states) |
+| `create-role` / `update-role` | [User Types](/api/operations/reference-data#user-types) |
+| `read-driver_break_types` | [Break Types](/api/operations/reference-data#break-types) |
+| `read-issue` | [Issue Status](/api/operations/reference-data#issue-status) |
+| `read-supplier_branch_hour` / `create-supplier_branch_hour` | [Week Days](/api/operations/reference-data#week-days) |
+| `read-leave_detail` | [Leave Status](/api/operations/reference-data#leave-status) |
+| `read-country` | [Countries](/api/operations/reference-data#countries) |
+| `read-state` | [States](/api/operations/reference-data#states) |
+| `create-zone` / `update-zone` | [States](/api/operations/reference-data#states) |
+| `create-area` / `update-area` | [States](/api/operations/reference-data#states) |
+| `create-supplier_branch` / `update-supplier_branch` | [States](/api/operations/reference-data#states), [Week Days](/api/operations/reference-data#week-days) |
+
+### Codes with no endpoint in this documentation
+
+These exist in the feature list but do not guard any endpoint documented here. They gate parts of the
+legacy portal API that is outside this documentation set — see the
+[coverage audit](/coverage#legacy-django-surface).
+
+`create-role`, `update-role`, `create-driver`, `update-driver`, `create-zone`, `update-zone`,
+`create-area`, `update-area`, `create-supplier_branch`, `update-supplier_branch`,
+`create-supplier_branch_hour` and `read-supplier_branch_hour` all appear above only because they
+also grant a reference-data lookup — none of them grants a create or update endpoint here.
+
+## Two endpoints need only a token
+
+[Order Sources](/api/operations/reference-data#order-sources) and
+[Payment Status](/api/operations/reference-data#payment-status) declare **no** feature code. Any
+authenticated portal user can read them.
+
+## Handling 403
+
+A `403` means the token is valid but the user is not permitted. It will not resolve by retrying or
+by refreshing the token — the user's role needs the feature code granted.
+
+```json
+{
+  "status": false,
+  "status_code": 403,
+  "error_code": "FORBIDDEN",
+  "message": "You dont have sufficient permission",
+  "detail": null
+}
+```
+
+The message does not name the missing code. Look the endpoint up on its page here to find out which
+one to request.

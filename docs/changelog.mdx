@@ -1,0 +1,61 @@
+---
+id: changelog
+title: Changelog
+sidebar_label: Changelog
+sidebar_position: 95
+description: Notable changes to the Allow MENA Delivery API and to this documentation.
+---
+
+# Changelog
+
+This records changes to the **documentation**. The backend repository's git history is the record of
+changes to the API itself.
+
+:::note How to read this
+Entries describe what the documentation now says, and — where relevant — what was found in the
+backend that had not been written down before. New entries go at the top.
+:::
+
+## 2026-09-13 — Initial publication
+
+First complete documentation set, written against the backend implementation.
+
+**Covered**
+
+- **Partner Orders** — all three create-order versions, cancel, track, status lookup and delivery
+  price quote.
+- **Webhooks** — order status and driver assigned, with payloads verified against the dispatcher.
+- **Service API** — internal order create, lookup and cancel.
+- **Driver App** — the session-backed authentication flow.
+- **Operations API** — suppliers, issued items, driver issued items, cash reconciliation, reports,
+  location resolution and the fourteen reference-data lookups.
+- **Concepts** — pagination, filtering and sorting, date and time handling, permissions, error
+  envelopes and every enumeration.
+
+**Findings recorded**
+
+Seven discrepancies between the published Postman collection and the backend, and three items that
+could not be fully verified, are listed on the [coverage audit](/coverage). The two most
+consequential:
+
+- The collection's **v3 create-order example body is malformed** and fails against the backend.
+- The collection's **order-status webhook example uses a status slug that does not exist**.
+
+Also flagged, as a question for the backend team rather than a documented feature: `GET` is routed
+on `/api/v1/external/orders` and `/api/v2/external/orders` through an inherited DRF `ListAPIView`
+handler that is not scoped to the caller's supplier branch. See
+[the coverage audit](/coverage#an-unintended-get-on-the-order-collections).
+
+## API version history
+
+The partner API's versions are additive and all remain live. From the backend's routing and
+serializers:
+
+| Version | Adds |
+| --- | --- |
+| `v1` | Batch create, pickup coordinate override, status lookup, delivery price quote. |
+| `v2` | Scheduled delivery windows, pickup contact and address fields, cart line items, collection method, pickup instruction notes, drop-off `avenue`, cancel, tracking. |
+| `v3` | Pickup instructions restructured into an `instructions` object with file attachments. |
+
+No version has been deprecated or withdrawn. See
+[Base URL & versions](/getting-started/base-url#which-partner-version-to-use) for which to use.

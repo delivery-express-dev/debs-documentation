@@ -1,0 +1,100 @@
+---
+id: delete-supplier
+title: Delete Supplier
+sidebar_label: Delete Supplier
+sidebar_position: 5
+description: Soft-delete an Allow MENA supplier along with its user account, branches and related records.
+---
+
+# Delete Supplier
+
+<Endpoint
+  method="DELETE"
+  path="/api/v1/web-app/suppliers/{supplier_id}"
+  auth="Bearer token"
+  permission="delete-supplier"
+/>
+
+Soft-deletes a supplier. This is a **wide** operation: it also removes the supplier's business type
+assignments, its owning user account, and **all of its branches** together with their order types,
+preferred vehicles, working hours, pickup slots, branch users and those users' accounts.
+
+:::danger This cascades across the supplier's entire footprint
+One call removes the supplier's branches and every user who signs in through them. Records are soft
+deleted rather than dropped, so the data survives in the database — but there is no
+undelete endpoint here. Confirm the scope before calling it.
+:::
+
+## Path parameters
+
+<ParamTable
+  params={[
+    { name: 'supplier_id', type: 'integer', required: true, description: 'The supplier to delete.', example: '12' },
+  ]}
+/>
+
+No request body.
+
+## Request example
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="cURL">
+
+```bash
+curl --request DELETE \
+  --url 'https://sandboxapi.allowmena.com/api/v1/web-app/suppliers/12' \
+  --header 'Authorization: Bearer YOUR_TOKEN'
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+import os
+import requests
+
+response = requests.delete(
+    "https://sandboxapi.allowmena.com/api/v1/web-app/suppliers/12",
+    headers={"Authorization": f"Bearer {os.environ['ALLOW_TOKEN']}"},
+    timeout=30,
+)
+response.raise_for_status()
+
+# 204: there is no response body to read.
+assert response.status_code == 204
+```
+
+</TabItem>
+<TabItem value="js" label="JavaScript">
+
+```javascript
+const response = await fetch('https://sandboxapi.allowmena.com/api/v1/web-app/suppliers/12', {
+  method: 'DELETE',
+  headers: { Authorization: `Bearer ${process.env.ALLOW_TOKEN}` },
+});
+
+// 204: there is no response body to read.
+if (response.status !== 204) throw new Error(`Delete failed: ${response.status}`);
+```
+
+</TabItem>
+</Tabs>
+
+## Response
+
+`204 No Content` — **no response body at all**, not even the success envelope. It is the only
+endpoint documented here that returns `204`, so a generic client that always parses JSON will
+throw on it.
+
+## Errors
+
+<ErrorTable
+  errors={[
+    { status: 401, code: 'TOKEN_MISSING', when: <>No <code>Authorization</code> header.</> },
+    { status: 401, code: 'TOKEN_EXPIRED', when: <>The access token has expired.</> },
+    { status: 403, code: 'FORBIDDEN', when: <>The token lacks <code>delete-supplier</code>.</> },
+    { status: 404, code: 'NOT_FOUND', when: <><code>Supplier not found</code> — no supplier with that id, or it is already deleted.</> },
+    { status: 422, code: 'VALIDATION_ERROR', when: <><code>supplier_id</code> is not an integer.</> },
+    { status: 500, code: 'INTERNAL_SERVER_ERROR', when: <>Unhandled server error.</> },
+  ]}
+/>

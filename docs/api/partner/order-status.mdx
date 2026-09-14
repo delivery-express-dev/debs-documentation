@@ -1,0 +1,126 @@
+---
+id: order-status
+title: Get Order Status
+sidebar_label: Get Order Status
+sidebar_position: 7
+description: Read the current status name of an Allow MENA order using the legacy v1 status endpoint.
+---
+
+# Get Order Status
+
+<Endpoint method="GET" path="/api/v1/external/orders/{order_id}/status" auth="x-api-key header" />
+
+Returns the order's current status as a display name, and nothing else.
+
+:::warning Superseded by Track Order
+[Track Order](/api/partner/track-order) returns the same status **plus** a machine-readable `slug`,
+the driver's details and a live ETA. Prefer it. This endpoint is documented because existing v1
+integrations call it.
+
+It also has a quirk this documentation cannot smooth over: a missing order is reported as **400**,
+not 404. See [Errors](#errors).
+:::
+
+## Path parameters
+
+<ParamTable
+  params={[
+    { name: 'order_id', type: 'integer', required: true, description: <>Platform order id, as returned by <a href="/api/partner/create-order-v1">Create Order</a>. Must belong to the branch behind your API key.</>, example: '19444' },
+  ]}
+/>
+
+No query parameters, no request body.
+
+## Request example
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="cURL">
+
+```bash
+curl --request GET \
+  --url 'https://sandboxapi.allowmena.com/api/v1/external/orders/19444/status' \
+  --header 'x-api-key: YOUR_API_KEY'
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+import os
+import requests
+
+response = requests.get(
+    "https://sandboxapi.allowmena.com/api/v1/external/orders/19444/status",
+    headers={"x-api-key": os.environ["ALLOW_API_KEY"]},
+    timeout=30,
+)
+
+body = response.json()
+if not body["status"]:
+    # Note: a missing order arrives here as HTTP 400, not 404.
+    raise RuntimeError(f"Status lookup failed ({response.status_code}): {body['message']}")
+
+print(body["data"]["order_status"])
+```
+
+</TabItem>
+<TabItem value="js" label="JavaScript">
+
+```javascript
+const response = await fetch(
+  'https://sandboxapi.allowmena.com/api/v1/external/orders/19444/status',
+  { headers: { 'x-api-key': process.env.ALLOW_API_KEY } },
+);
+
+const body = await response.json();
+// Note: a missing order arrives here as HTTP 400, not 404.
+if (!body.status) throw new Error(`Status lookup failed (${response.status}): ${body.message}`);
+
+console.log(body.data.order_status);
+```
+
+</TabItem>
+</Tabs>
+
+## Response
+
+`200 OK`
+
+```json
+{
+  "status": true,
+  "message": "Success",
+  "data": {
+    "order_status": "Driver Reached"
+  }
+}
+```
+
+<ParamTable
+  title="data fields"
+  params={[
+    { name: 'order_status', type: 'string', required: true, description: <>The status display name. This is the human label, <strong>not</strong> a slug — matching on it means matching on display text. Use <a href="/api/partner/track-order">Track Order</a> if you need the stable <code>slug</code>. See <a href="/concepts/enumerations#order-status">Order status</a> for the full list.</>, example: '"Driver Reached"' },
+  ]}
+/>
+
+## Errors
+
+<ErrorTable
+  errors={[
+    { status: 400, when: <><code>Order not found</code> — no order with that id belongs to the branch behind your API key. <strong>This is a 400, not a 404</strong>: the view raises a not-found error internally but its handler answers 400 for every application error.</> },
+    { status: 401, when: <>Missing, unknown, revoked or expired <code>x-api-key</code>.</> },
+    { status: 500, when: <><code>Something went wrong</code> — unhandled server error.</> },
+  ]}
+/>
+
+:::caution Do not key retry logic on 404 here
+Because "not found" arrives as `400`, a client that treats 4xx-other-than-404 as a permanent bad
+request and 404 as "not yet visible" will misclassify this response. Match on the `message` string,
+or switch to [Track Order](/api/partner/track-order), which returns a correct 404.
+:::
+
+## Not in the published Postman collection
+
+This endpoint is routed and live in the backend but has **no entry in the published Postman
+collection**. It is documented here from the implementation. See the
+[coverage audit](/coverage#in-backend-not-in-postman).

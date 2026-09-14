@@ -1,0 +1,126 @@
+---
+id: refresh-token
+title: Refresh Token
+sidebar_label: Refresh Token
+sidebar_position: 4
+description: Rotate a driver's access and refresh tokens and extend the session window.
+---
+
+# Refresh Token
+
+<Endpoint method="POST" path="/api/v1/driver/auth/refresh-token" publicAccess />
+
+Exchanges a valid refresh token for a **new pair** of access and refresh tokens, and slides the
+session's expiry forward by another window.
+
+Call it when the access token is about to expire, or after a `401 TOKEN_EXPIRED` on any driver
+request. The refresh token goes in the body — not in the `Authorization` header.
+
+:::note Both tokens rotate
+The old refresh token is replaced. Store the new pair and discard the old one; keeping the previous
+refresh token will not help you.
+:::
+
+## Request body
+
+<ParamTable
+  params={[
+    { name: 'refreshToken', type: 'string', required: true, description: 'The refresh JWT from Login, Confirm Login, or the previous refresh.', example: '"eyJhbGciOiJIUzI1NiIs..."' },
+  ]}
+/>
+
+## Request example
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="cURL">
+
+```bash
+curl --request POST \
+  --url 'https://sandboxapi.allowmena.com/api/v1/driver/auth/refresh-token' \
+  --header 'Content-Type: application/json' \
+  --data '{ "refreshToken": "YOUR_REFRESH_TOKEN" }'
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+import requests
+
+
+def refresh(refresh_token: str) -> dict:
+    response = requests.post(
+        "https://sandboxapi.allowmena.com/api/v1/driver/auth/refresh-token",
+        json={"refreshToken": refresh_token},
+        timeout=30,
+    )
+    if response.status_code == 401:
+        # The session is gone — the driver must sign in again.
+        raise SessionExpired(response.json()["error_code"])
+
+    response.raise_for_status()
+    # Both tokens rotate: store the new pair, discard the old.
+    return response.json()["data"]["tokens"]
+```
+
+</TabItem>
+<TabItem value="js" label="JavaScript">
+
+```javascript
+async function refresh(refreshToken) {
+  const response = await fetch(
+    'https://sandboxapi.allowmena.com/api/v1/driver/auth/refresh-token',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    },
+  );
+
+  if (response.status === 401) {
+    // The session is gone — the driver must sign in again.
+    const { error_code: errorCode } = await response.json();
+    throw new SessionExpired(errorCode);
+  }
+
+  const { data } = await response.json();
+  // Both tokens rotate: store the new pair, discard the old.
+  return data.tokens;
+}
+```
+
+</TabItem>
+</Tabs>
+
+## Response
+
+`200 OK`
+
+```json
+{
+  "status": true,
+  "status_code": 200,
+  "message": "Success",
+  "data": {
+    "tokens": {
+      "accessToken": "eyJhbGciOiJIUzI1NiIs...",
+      "refreshToken": "eyJhbGciOiJIUzI1NiIs..."
+    },
+    "driverInfo": { "id": 42 }
+  }
+}
+```
+
+## Errors
+
+Every failure here means the same thing operationally: **send the driver back to login.**
+
+<ErrorTable
+  errors={[
+    { status: 401, code: 'TOKEN_EXPIRED', when: <>The refresh token itself has expired.</> },
+    { status: 401, code: 'INVALID_TOKEN', when: <>Bad signature or malformed token; a portal token used as a driver refresh token; the driver was deleted; or the session is inactive, expired, missing, or belongs to a different driver.</> },
+    { status: 403, code: 'FORBIDDEN', when: <>The driver account is inactive or disabled.</> },
+    { status: 422, code: 'VALIDATION_ERROR', when: <><code>refreshToken</code> is missing from the body.</> },
+    { status: 500, code: 'INTERNAL_SERVER_ERROR', when: <>Unhandled server error.</> },
+  ]}
+/>

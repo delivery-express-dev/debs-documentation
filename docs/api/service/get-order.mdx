@@ -1,0 +1,129 @@
+---
+id: get-order
+title: Get Order (Service)
+sidebar_label: Get Order
+sidebar_position: 3
+description: Look up an order through the Allow MENA internal service API by platform order id or by integration order id.
+---
+
+# Get Order (Service)
+
+<Endpoint method="GET" path="/api/v1/internal/orders" auth="X-API-Key header" />
+
+Looks up a single order by **either** the platform's own id **or** the id the originating
+integration knows it by. The order is selected by query parameters on the collection path — there is
+no `/orders/{id}` form, because a lookup can go either way.
+
+Use it to recover an order id after a lost response, or to confirm an order exists before acting on
+it.
+
+## Query parameters
+
+Supply exactly one. Supplying neither is rejected; supplying both uses `orderId`.
+
+<ParamTable
+  params={[
+    { name: 'orderId', type: 'integer', required: false, description: "The platform's own id for the order.", example: '19444' },
+    { name: 'integrationOrderId', type: 'string (uuid)', required: false, description: 'The id the originating integration knows the order by — the same value sent to Create Order.', example: '"11111111-2222-3333-4444-555555555555"' },
+  ]}
+/>
+
+:::caution Omitting both returns 422
+A bare `GET /api/v1/internal/orders` with no query string does not list orders — it fails validation
+with `Provide either order_id or integration_order_id.` There is no list endpoint on this surface.
+:::
+
+## Request example
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="cURL">
+
+```bash
+# By platform order id
+curl --request GET \
+  --url 'https://sandboxapi.allowmena.com/api/v1/internal/orders?orderId=19444' \
+  --header 'X-API-Key: YOUR_SERVICE_KEY'
+
+# By integration order id
+curl --request GET \
+  --url 'https://sandboxapi.allowmena.com/api/v1/internal/orders?integrationOrderId=11111111-2222-3333-4444-555555555555' \
+  --header 'X-API-Key: YOUR_SERVICE_KEY'
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+import os
+import requests
+
+response = requests.get(
+    "https://sandboxapi.allowmena.com/api/v1/internal/orders",
+    headers={"X-API-Key": os.environ["ALLOW_SERVICE_KEY"]},
+    params={"integrationOrderId": "11111111-2222-3333-4444-555555555555"},
+    timeout=30,
+)
+response.raise_for_status()
+
+print(response.json()["data"]["orderId"])
+```
+
+</TabItem>
+<TabItem value="js" label="JavaScript">
+
+```javascript
+const url = new URL('https://sandboxapi.allowmena.com/api/v1/internal/orders');
+url.searchParams.set('integrationOrderId', '11111111-2222-3333-4444-555555555555');
+
+const response = await fetch(url, {
+  headers: { 'X-API-Key': process.env.ALLOW_SERVICE_KEY },
+});
+
+const body = await response.json();
+console.log(body.data.orderId);
+```
+
+</TabItem>
+</Tabs>
+
+## Response
+
+`200 OK`
+
+```json
+{
+  "status": true,
+  "status_code": 200,
+  "message": "Order fetched successfully.",
+  "data": {
+    "orderId": 19444,
+    "integrationOrderId": "11111111-2222-3333-4444-555555555555"
+  }
+}
+```
+
+<ParamTable
+  title="data fields"
+  params={[
+    { name: 'orderId', type: 'integer', required: true, description: 'The platform order id.' },
+    { name: 'integrationOrderId', type: 'string (uuid)', required: true, description: 'The integration order id.' },
+  ]}
+/>
+
+:::note Only the two identifiers are returned
+The response schema declares these two fields and no others. This endpoint resolves an id to an id —
+it is not an order-details endpoint. For status and driver information on a partner order, use
+[Track Order](/api/partner/track-order).
+:::
+
+## Errors
+
+<ErrorTable
+  errors={[
+    { status: 401, code: 'API_KEY_MISSING', when: <>No <code>X-API-Key</code> header.</> },
+    { status: 401, code: 'INVALID_API_KEY', when: <>The key does not match the configured service key.</> },
+    { status: 404, code: 'NOT_FOUND', when: <>No order matches the identifier supplied.</> },
+    { status: 422, code: 'VALIDATION_ERROR', when: <>Neither identifier was supplied, or <code>integrationOrderId</code> is not a valid UUID.</> },
+    { status: 500, code: 'INTERNAL_SERVER_ERROR', when: <>Unhandled server error.</> },
+  ]}
+/>

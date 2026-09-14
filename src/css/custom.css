@@ -1,0 +1,314 @@
+/**
+ * Allow MENA Delivery — API documentation theme.
+ *
+ * Brand anchor is the ALLOW product purple (#9155FD in the operations portal),
+ * darkened to #6D28D9 for body links so text on white clears WCAG AA. The
+ * palette is deliberately narrow: one accent, one neutral ramp, and the five
+ * HTTP method colours. Everything else is type and spacing.
+ */
+
+/* ── Typography ──────────────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+  --ifm-font-family-base: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+  --ifm-font-family-monospace: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas,
+    'Liberation Mono', monospace;
+
+  --ifm-color-primary: #6d28d9;
+  --ifm-color-primary-dark: #6224c3;
+  --ifm-color-primary-darker: #5c22b8;
+  --ifm-color-primary-darkest: #4c1c98;
+  --ifm-color-primary-light: #7c3aed;
+  --ifm-color-primary-lighter: #8b4ff0;
+  --ifm-color-primary-lightest: #a478f4;
+
+  --ifm-code-font-size: 87.5%;
+  --ifm-font-size-base: 16px;
+  --ifm-line-height-base: 1.65;
+  --ifm-heading-font-weight: 650;
+  --ifm-h1-font-size: 2.15rem;
+  --ifm-h2-font-size: 1.55rem;
+  --ifm-h3-font-size: 1.2rem;
+
+  --ifm-navbar-height: 3.75rem;
+  --ifm-navbar-shadow: none;
+  --ifm-toc-border-color: var(--allow-border);
+  --ifm-global-radius: 8px;
+
+  /* Surfaces & borders — one neutral ramp, used everywhere. */
+  --allow-surface: #ffffff;
+  --allow-surface-subtle: #fbfafc;
+  --allow-surface-sunken: #f5f3f7;
+  --allow-border: #e6e2ec;
+  --allow-border-strong: #d3cddd;
+  --allow-text-muted: #63607a;
+
+  /* HTTP method colours — distinct in hue, not just lightness, so the badges
+     stay separable for readers with colour-vision deficiency. Each is paired
+     with a tinted background at the same hue. */
+  --m-get: #0369a1;
+  --m-get-bg: #e0f2fe;
+  --m-post: #15803d;
+  --m-post-bg: #dcfce7;
+  --m-put: #b45309;
+  --m-put-bg: #fef3c7;
+  --m-patch: #7e22ce;
+  --m-patch-bg: #f3e8ff;
+  --m-delete: #b91c1c;
+  --m-delete-bg: #fee2e2;
+
+  --ifm-table-border-color: var(--allow-border);
+  --ifm-table-head-background: var(--allow-surface-subtle);
+  --ifm-table-stripe-background: transparent;
+
+  --docusaurus-highlighted-code-line-bg: rgba(109, 40, 217, 0.1);
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #a78bfa;
+  --ifm-color-primary-dark: #8f6bf8;
+  --ifm-color-primary-darker: #825bf7;
+  --ifm-color-primary-darkest: #6229f4;
+  --ifm-color-primary-light: #bfabfc;
+  --ifm-color-primary-lighter: #ccbbfd;
+  --ifm-color-primary-lightest: #f3eeff;
+
+  --ifm-background-color: #0f0d15;
+  --ifm-background-surface-color: #16131f;
+
+  --allow-surface: #16131f;
+  --allow-surface-subtle: #1b1726;
+  --allow-surface-sunken: #110f18;
+  --allow-border: #2c2640;
+  --allow-border-strong: #3d3557;
+  --allow-text-muted: #a29bb8;
+
+  --m-get: #7dd3fc;
+  --m-get-bg: rgba(3, 105, 161, 0.28);
+  --m-post: #86efac;
+  --m-post-bg: rgba(21, 128, 61, 0.28);
+  --m-put: #fcd34d;
+  --m-put-bg: rgba(180, 83, 9, 0.3);
+  --m-patch: #e9d5ff;
+  --m-patch-bg: rgba(126, 34, 206, 0.35);
+  --m-delete: #fca5a5;
+  --m-delete-bg: rgba(185, 28, 28, 0.3);
+
+  --ifm-table-head-background: var(--allow-surface-subtle);
+  --docusaurus-highlighted-code-line-bg: rgba(167, 139, 250, 0.16);
+}
+
+/* ── Chrome ──────────────────────────────────────────────────────────────── */
+.navbar {
+  border-bottom: 1px solid var(--allow-border);
+  background: var(--allow-surface);
+}
+.navbar__logo img {
+  height: 26px;
+  width: auto;
+}
+.navbar__title {
+  font-weight: 680;
+  letter-spacing: -0.015em;
+}
+.navbar__link {
+  font-size: 0.9rem;
+  font-weight: 520;
+}
+
+.menu {
+  font-size: 0.875rem;
+  padding-top: 0.75rem;
+}
+.menu__link {
+  border-radius: 6px;
+  line-height: 1.35;
+}
+.menu__link--active:not(.menu__link--sublist) {
+  background: var(--allow-surface-sunken);
+  font-weight: 600;
+}
+.theme-doc-sidebar-item-category > .menu__list-item-collapsible > .menu__link {
+  font-weight: 640;
+  font-size: 0.74rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--allow-text-muted);
+}
+/* Nested endpoint entries: slightly tighter so long lists stay scannable. */
+.menu__list .menu__list .menu__link {
+  font-size: 0.845rem;
+  padding-top: 0.3rem;
+  padding-bottom: 0.3rem;
+}
+
+.theme-doc-sidebar-container {
+  border-right: 1px solid var(--allow-border) !important;
+}
+
+/* ── Content ─────────────────────────────────────────────────────────────── */
+.markdown h1:first-child {
+  --ifm-h1-font-size: 2.15rem;
+  letter-spacing: -0.025em;
+  margin-bottom: 0.4rem;
+}
+.markdown > h2 {
+  margin-top: 2.6rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--allow-border);
+  letter-spacing: -0.015em;
+}
+.markdown > h3 {
+  margin-top: 1.9rem;
+  letter-spacing: -0.01em;
+}
+
+.markdown a {
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+/* Tables: parameter tables are the workhorse of this site. Let them scroll
+   horizontally on small screens rather than squeezing the description column
+   into one word per line. */
+.markdown table {
+  display: table;
+  width: 100%;
+  font-size: 0.875rem;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--allow-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.markdown table th {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--allow-text-muted);
+  font-weight: 640;
+  white-space: nowrap;
+}
+.markdown table th,
+.markdown table td {
+  border: none;
+  border-bottom: 1px solid var(--allow-border);
+  padding: 0.6rem 0.85rem;
+  vertical-align: top;
+}
+.markdown table tr:last-child td {
+  border-bottom: none;
+}
+.markdown table code {
+  white-space: nowrap;
+}
+/* The wrapper Docusaurus puts around tables; make it the scroll container. */
+.markdown > div:has(> table) {
+  overflow-x: auto;
+}
+
+.markdown code {
+  border: 1px solid var(--allow-border);
+  background: var(--allow-surface-sunken);
+  border-radius: 5px;
+  padding: 0.12em 0.36em;
+  font-size: 0.855em;
+}
+.markdown a code {
+  color: inherit;
+}
+
+div[class^='codeBlockContainer'] {
+  border-radius: 10px;
+  border: 1px solid var(--allow-border);
+  box-shadow: none;
+}
+div[class^='codeBlockTitle'] {
+  border-bottom: 1px solid var(--allow-border);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--allow-text-muted);
+}
+
+/* Admonitions: flatter than the default, to sit quietly beside the endpoint
+   cards rather than competing with them. */
+.theme-admonition {
+  border-radius: 8px;
+  border-width: 1px;
+  border-left-width: 3px;
+  font-size: 0.9rem;
+}
+
+/* Tabs (cURL | Python | JavaScript) */
+.tabs {
+  border-bottom: 1px solid var(--allow-border);
+  gap: 0.15rem;
+}
+.tabs__item {
+  font-size: 0.83rem;
+  font-weight: 560;
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px 6px 0 0;
+  border-bottom: 2px solid transparent;
+  color: var(--allow-text-muted);
+}
+.tabs__item--active {
+  border-bottom-color: var(--ifm-color-primary);
+  color: var(--ifm-color-primary);
+  background: transparent;
+}
+.tabs__item:hover {
+  background: var(--allow-surface-sunken);
+}
+
+/* Pagination cards at the foot of every page */
+.pagination-nav__link {
+  border-radius: 10px;
+  border-color: var(--allow-border);
+}
+.pagination-nav__sublabel {
+  color: var(--allow-text-muted);
+  font-size: 0.75rem;
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+@media (max-width: 996px) {
+  :root {
+    --ifm-h1-font-size: 1.8rem;
+    --ifm-h2-font-size: 1.35rem;
+  }
+  .markdown table {
+    font-size: 0.82rem;
+  }
+  article {
+    padding-inline: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .markdown table th,
+  .markdown table td {
+    padding: 0.5rem 0.6rem;
+  }
+}
+
+/* Respect users who ask for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* Keyboard focus must stay visible everywhere, including on custom cards. */
+a:focus-visible,
+button:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--ifm-color-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}

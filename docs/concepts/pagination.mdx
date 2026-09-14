@@ -1,0 +1,143 @@
+---
+id: pagination
+title: Pagination
+sidebar_label: Pagination
+sidebar_position: 1
+description: The three pagination parameter styles used across the Allow MENA Delivery API, and which endpoints use which.
+---
+
+# Pagination
+
+The response envelope for a paginated list is the same everywhere. The **request** parameters are
+not — three different styles are in use, and you cannot infer which from the module.
+
+## The response envelope
+
+Every paginated endpoint returns the same wrapper:
+
+```json
+{
+  "status": true,
+  "status_code": 200,
+  "message": "…",
+  "data": [ ],
+  "links": {
+    "limit": 8,
+    "offset": 0,
+    "next": "https://sandboxapi.allowmena.com/api/v1/web-app/suppliers?limit=8&offset=8",
+    "previous": null
+  },
+  "count": 34
+}
+```
+
+| Field | Description |
+| --- | --- |
+| `data` | The current page. |
+| `links.limit` | Page size applied. |
+| `links.offset` | Records skipped. |
+| `links.next` | Absolute URL of the next page, `null` on the last page. |
+| `links.previous` | Absolute URL of the previous page, `null` on the first page. |
+| `count` | Total matching records, across all pages. |
+
+Note that `links` always reports `limit` and `offset` — **even for endpoints you paginate with
+`page` and `per_page`**. The request style and the response style do not match on those endpoints.
+
+### Follow the links
+
+`next` and `previous` preserve every other query parameter you sent — filters, search terms, sort
+order — and swap only `limit` and `offset`. Following them is more reliable than recomputing offsets,
+and it is the only approach that survives a change of default page size.
+
+```python
+def iterate_all(url: str, headers: dict) -> list[dict]:
+    """Walk every page by following links.next."""
+    rows: list[dict] = []
+    while url:
+        body = requests.get(url, headers=headers, timeout=30).json()
+        rows.extend(body["data"])
+        url = body["links"]["next"]
+    return rows
+```
+
+The URLs are absolute and honour the original request's scheme and host, so they work unmodified
+from behind a load balancer.
+
+## The three request styles
+
+### Style A — `limit` / `offset` / `no_page`
+
+<ParamTable
+  params={[
+    { name: 'limit', type: 'integer', required: false, default: '8', description: 'Page size, 1 to 200.' },
+    { name: 'offset', type: 'integer', required: false, default: '0', description: 'Records to skip.' },
+    { name: 'no_page', type: 'boolean', required: false, default: 'false', description: 'Return everything unpaginated. Rejected if sent together with limit or offset.' },
+  ]}
+/>
+
+Used by the thirteen paginated [reference data](/api/operations/reference-data) endpoints.
+
+**`no_page=true` changes the envelope**: `links` and `count` are omitted entirely. Sending it with
+`limit` or `offset` returns `400 limit and offset must not be provided when no_page=true.`
+
+### Style B — `limit` / `offset` / `noPage`
+
+<ParamTable
+  params={[
+    { name: 'limit', type: 'integer', required: false, default: '8', description: 'Page size, 1 to 200.' },
+    { name: 'offset', type: 'integer', required: false, default: '0', description: 'Records to skip.' },
+    { name: 'noPage', type: 'boolean', required: false, default: 'false', description: 'Return everything unpaginated.' },
+  ]}
+/>
+
+Same semantics as Style A, but the flag is **camelCase**. Used by:
+
+- [List Suppliers](/api/operations/suppliers/list-suppliers)
+- [Driver Performance Report](/api/operations/reports/driver-performance)
+- [List Report Drivers](/api/operations/reports/driver-performance-drivers)
+- [Supplier Branch Financials](/api/operations/reports/supplier-branch-financials)
+
+### Style C — `page` / `per_page`
+
+<ParamTable
+  params={[
+    { name: 'page', type: 'integer', required: false, default: '1', description: 'Page number, starting at 1.' },
+    { name: 'per_page', type: 'integer', required: false, description: 'Page size, 1 to 100.' },
+  ]}
+/>
+
+Page-number based, and the maximum page size is **100**, not 200. There is no unpaginated mode. Used
+by:
+
+- [List Issued Items](/api/operations/issued-items/list-issued-items)
+- [List Driver Issued Items](/api/operations/driver-issued-items/list-driver-issued-items)
+- [List Deposit-Eligible Orders](/api/operations/orders/deposit-eligible)
+
+## Quick reference
+
+| Endpoint | Style | Max page size |
+| --- | --- | --- |
+| [Reference data](/api/operations/reference-data) (13 endpoints) | A — `no_page` | 200 |
+| [List Suppliers](/api/operations/suppliers/list-suppliers) | B — `noPage` | 200 |
+| [Driver Performance](/api/operations/reports/driver-performance) | B — `noPage` | 200 |
+| [Report Drivers](/api/operations/reports/driver-performance-drivers) | B — `noPage` | 200 |
+| [Branch Financials](/api/operations/reports/supplier-branch-financials) | B — `noPage` | 200 |
+| [List Issued Items](/api/operations/issued-items/list-issued-items) | C — `page` | 100 |
+| [Driver Issued Items](/api/operations/driver-issued-items/list-driver-issued-items) | C — `page` | 100 |
+| [Deposit-Eligible Orders](/api/operations/orders/deposit-eligible) | C — `page` | 100 |
+
+## Not paginated
+
+Some list-shaped endpoints return everything:
+
+- [Driver Attendance Report](/api/operations/reports/driver-attendance) — every shift in the range.
+- [Item Categories](/api/operations/reference-data#item-categories) — the full category list.
+- The partner API's [Create Order](/api/partner/create-order-v3) and
+  [Cancel Orders](/api/partner/cancel-orders) — these return one row per item you sent, so the size
+  is bounded by your own request.
+
+:::caution The default page size is 8
+Styles A and B default to **8** records — small enough that a client which ignores pagination will
+quietly work with a truncated list. Always either set an explicit `limit`, follow `links.next`, or
+pass the unpaginated flag.
+:::

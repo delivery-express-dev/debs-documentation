@@ -1,0 +1,393 @@
+---
+id: create-order-v3
+title: Create Order (v3)
+sidebar_label: Create Order (v3)
+sidebar_position: 2
+description: Create one or more delivery orders with the Allow MENA v3 partner API, including scheduling, cart line items and pickup instructions with attachments.
+---
+
+# Create Order (v3)
+
+<Endpoint method="POST" path="/api/v3/external/orders" auth="x-api-key header" />
+
+Submits one or more delivery orders for fulfilment by the supplier branch behind your API key. This
+is the recommended version for new integrations — it accepts everything v2 does and adds pickup
+instruction attachments.
+
+Use it whenever you have a delivery to dispatch: an on-demand order is picked up as soon as a driver
+is available, and an order carrying a `schedule` block is queued for a delivery window you choose.
+It returns the platform order id for each order you sent, paired with your own reference.
+
+## Request body
+
+<ParamTable
+  title="Top level"
+  params={[
+    { name: 'orders', type: 'array<object>', required: true, description: <>The orders to create. Always an array, even for a single order. The whole batch is created in one database transaction — see <a href="#batch-behaviour">Batch behaviour</a>.</> },
+  ]}
+/>
+
+### Order object
+
+<ParamTable
+  params={[
+    { name: 'drop-off', type: 'object', required: true, description: <>Where the order is delivered. Note the hyphen. See <a href="#drop-off-object">Drop-off object</a>.</> },
+    { name: 'supplier_reference_id', type: 'string', required: true, description: 'Your own identifier for the order. Returned on every response and every webhook, so you can match a callback to your record without a lookup table.', example: '"SHOP-1001"' },
+    { name: 'payment_type', type: 'integer', required: true, values: ['1', '2'], description: <><code>1</code> — Cash on Delivery: the driver collects <code>total_amount</code> from the customer. <code>2</code> — Online: already paid, the driver collects nothing.</>, example: '1' },
+    { name: 'total_amount', type: 'decimal', required: true, description: 'Order total. Up to 11 digits with 3 decimal places. For Cash on Delivery this is the amount the driver collects; for Online orders it is recorded but nothing is collected.', example: '45.500' },
+    { name: 'pickup', type: 'object', required: false, description: <>Overrides the collection point. Omit to collect from your branch's registered address. See <a href="#pickup-object">Pickup object</a>.</> },
+    { name: 'schedule', type: 'object', required: false, description: <>Books a delivery window instead of dispatching on demand. See <a href="#schedule-object">Schedule object</a>.</> },
+  ]}
+/>
+
+### Drop-off object
+
+**Either** `latitude` **and** `longitude`, **or** `area`, must be present. Sending both is allowed
+and preferred — coordinates give the precise destination, and the area is resolved from them.
+
+<ParamTable
+  params={[
+    { name: 'latitude', type: 'number', required: false, description: 'Decimal degrees. Required together with longitude if area is omitted.', example: '29.320556' },
+    { name: 'longitude', type: 'number', required: false, description: 'Decimal degrees. Required together with latitude if area is omitted.', example: '48.037866' },
+    { name: 'area', type: 'string', required: false, description: 'Area name, matched against the platform\'s area aliases. Required if coordinates are omitted. An unrecognised name is still accepted — the order is flagged for operator review rather than rejected.', example: '"Jabriya"' },
+    { name: 'name', type: 'string', required: false, description: 'Customer name.', example: '"Sara Al-Ali"' },
+    { name: 'mobile', type: 'string', required: false, description: 'Customer contact number.', example: '"77669900"' },
+    { name: 'address_line1', type: 'string', required: false, description: 'First line of the address.' },
+    { name: 'address_line2', type: 'string', required: false, description: 'Second line of the address.' },
+    { name: 'block', type: 'string', required: false, description: 'Block name or number.' },
+    { name: 'street', type: 'string', required: false, description: 'Street name or number.' },
+    { name: 'avenue', type: 'string', required: false, description: 'Avenue name or number. Added in v2; not available in v1.' },
+    { name: 'building', type: 'string', required: false, description: 'Building name or number.' },
+    { name: 'floor', type: 'string', required: false, description: 'Floor.' },
+    { name: 'flat', type: 'string', required: false, description: 'Flat or apartment number.' },
+    { name: 'house_number', type: 'string', required: false, description: 'House number.' },
+    { name: 'landmark', type: 'string', required: false, description: 'Nearby landmark to help the driver.' },
+    { name: 'notes', type: 'string', required: false, description: 'Delivery note recorded on the order and shown to the driver.' },
+  ]}
+/>
+
+### Pickup object
+
+Omit `pickup` entirely and the order is collected from your branch's registered address, contact and
+area. That is the normal case.
+
+If you do send a `pickup` object, `latitude`, `longitude`, `name` and `mobile` are **all four
+required together**. Sending some but not all is rejected, naming the ones you left out.
+
+<ParamTable
+  params={[
+    { name: 'latitude', type: 'number', required: false, description: 'Decimal degrees. Required if any of longitude, name or mobile is sent.', example: '29.320556' },
+    { name: 'longitude', type: 'number', required: false, description: 'Decimal degrees. Required if any of latitude, name or mobile is sent.', example: '48.037866' },
+    { name: 'name', type: 'string', required: false, description: 'Pickup contact name. Required if coordinates are sent.', example: '"Central Warehouse"' },
+    { name: 'mobile', type: 'string', required: false, description: 'Pickup contact number. Required if coordinates are sent.', example: '"+96598987676"' },
+    { name: 'area', type: 'string', required: false, description: 'Area name for the pickup point. Recorded as given; the authoritative area is resolved from the coordinates.' },
+    { name: 'address_line1', type: 'string', required: false, description: 'First line of the pickup address.' },
+    { name: 'address_line2', type: 'string', required: false, description: 'Second line of the pickup address.' },
+    { name: 'block', type: 'string', required: false, description: 'Block name or number.' },
+    { name: 'street', type: 'string', required: false, description: 'Street name or number.' },
+    { name: 'building', type: 'string', required: false, description: 'Building name or number.' },
+    { name: 'floor', type: 'string', required: false, description: 'Floor.' },
+    { name: 'flat', type: 'string', required: false, description: 'Flat or apartment number.' },
+    { name: 'house_number', type: 'string', required: false, description: 'House number.' },
+    { name: 'landmark', type: 'string', required: false, description: 'Nearby landmark.' },
+    { name: 'collection_method', type: 'integer', required: false, default: '1', values: ['1', '2'], description: <><code>1</code> — Collect: the goods are waiting for the driver. <code>2</code> — Buy: the driver purchases them at the pickup point.</> },
+    { name: 'item_details', type: 'array<object>', required: false, description: <>Cart line items. Every entry must carry all four of <code>name</code>, <code>description</code>, <code>price</code> and <code>quantity</code>; any other key is dropped.</> },
+    { name: 'instructions', type: 'object', required: false, description: <>Pickup instructions with optional attachments. See <a href="#pickup-instructions">Pickup instructions</a>.</> },
+  ]}
+/>
+
+### Pickup instructions
+
+New in v3. In v2 the equivalent was a plain `pickup.notes` string with no attachment support.
+
+<ParamTable
+  params={[
+    { name: 'notes', type: 'string', required: false, description: 'Free-text instructions for the driver, recorded as a pickup-instruction note on the order. Must be a string — an array or object is rejected.' },
+    { name: 'attachments', type: 'array<object>', required: false, description: <>Files the driver should see. Each entry requires <code>file_name</code> and <code>url</code>.</> },
+    { name: 'attachments[].file_name', type: 'string', required: true, description: <>Name including exactly one extension, e.g. <code>invoice.pdf</code>. Allowed extensions: <code>jpg</code>, <code>jpeg</code>, <code>png</code>, <code>pdf</code>. No slashes.</> },
+    { name: 'attachments[].url', type: 'string', required: true, description: <>Publicly reachable <code>http</code> or <code>https</code> URL the platform fetches the file from. Configured maximum size is 5&nbsp;MB.</> },
+  ]}
+/>
+
+### Schedule object
+
+Omit `schedule` for an on-demand order. Send it to book a delivery window.
+
+<ParamTable
+  params={[
+    { name: 'delivery_time_slot_start', type: 'string', required: true, description: <>Start of the delivery window, formatted <code>YYYY-MM-DD HH:MM:SS</code>. Must be far enough ahead to allow preparation and pickup — the platform rejects a start time inside that buffer and tells you the earliest acceptable time.</>, example: '"2026-11-01 15:00:00"' },
+    { name: 'delivery_time_slot_end', type: 'string', required: true, description: <>End of the delivery window, same format. Must be later than <code>delivery_time_slot_start</code>.</>, example: '"2026-11-01 16:00:00"' },
+  ]}
+/>
+
+:::caution Times carry no timezone
+Both fields are parsed as naive local server time. Do not append `Z` or an offset — it will fail
+with `Invalid datetime format`. See [Date & time](/concepts/date-time).
+:::
+
+## Request examples
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="cURL">
+
+```bash
+curl --request POST \
+  --url 'https://sandboxapi.allowmena.com/api/v3/external/orders' \
+  --header 'x-api-key: YOUR_API_KEY' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "orders": [
+      {
+        "drop-off": {
+          "latitude": 29.320556,
+          "longitude": 48.037866,
+          "area": "Jabriya",
+          "name": "Sara Al-Ali",
+          "mobile": "77669900",
+          "block": "1",
+          "street": "20",
+          "building": "22",
+          "floor": "3",
+          "flat": "2",
+          "notes": "Call on arrival"
+        },
+        "supplier_reference_id": "SHOP-1001",
+        "payment_type": 1,
+        "total_amount": 45.500
+      }
+    ]
+  }'
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+import os
+import requests
+
+BASE_URL = "https://sandboxapi.allowmena.com"
+
+payload = {
+    "orders": [
+        {
+            "drop-off": {
+                "latitude": 29.320556,
+                "longitude": 48.037866,
+                "area": "Jabriya",
+                "name": "Sara Al-Ali",
+                "mobile": "77669900",
+                "block": "1",
+                "street": "20",
+                "building": "22",
+                "floor": "3",
+                "flat": "2",
+                "notes": "Call on arrival",
+            },
+            "supplier_reference_id": "SHOP-1001",
+            "payment_type": 1,
+            "total_amount": "45.500",
+        }
+    ]
+}
+
+response = requests.post(
+    f"{BASE_URL}/api/v3/external/orders",
+    headers={"x-api-key": os.environ["ALLOW_API_KEY"], "Content-Type": "application/json"},
+    json=payload,
+    timeout=30,
+)
+
+body = response.json()
+if not body["status"]:
+    raise RuntimeError(f"Order rejected ({response.status_code}): {body['message']}")
+
+for created in body["data"]:
+    print(created["supplier_reference_id"], "->", created["order_id"])
+```
+
+</TabItem>
+<TabItem value="js" label="JavaScript">
+
+```javascript
+const BASE_URL = 'https://sandboxapi.allowmena.com';
+
+const payload = {
+  orders: [
+    {
+      'drop-off': {
+        latitude: 29.320556,
+        longitude: 48.037866,
+        area: 'Jabriya',
+        name: 'Sara Al-Ali',
+        mobile: '77669900',
+        block: '1',
+        street: '20',
+        building: '22',
+        floor: '3',
+        flat: '2',
+        notes: 'Call on arrival',
+      },
+      supplier_reference_id: 'SHOP-1001',
+      payment_type: 1,
+      total_amount: '45.500',
+    },
+  ],
+};
+
+const response = await fetch(`${BASE_URL}/api/v3/external/orders`, {
+  method: 'POST',
+  headers: { 'x-api-key': process.env.ALLOW_API_KEY, 'Content-Type': 'application/json' },
+  body: JSON.stringify(payload),
+});
+
+const body = await response.json();
+if (!body.status) {
+  throw new Error(`Order rejected (${response.status}): ${body.message}`);
+}
+
+for (const created of body.data) {
+  console.log(created.supplier_reference_id, '->', created.order_id);
+}
+```
+
+</TabItem>
+</Tabs>
+
+### A scheduled order with pickup instructions
+
+```json title="Request body"
+{
+  "orders": [
+    {
+      "pickup": {
+        "latitude": 29.320556,
+        "longitude": 48.037866,
+        "name": "Central Warehouse",
+        "mobile": "+96598987676",
+        "block": "1",
+        "street": "20",
+        "collection_method": 1,
+        "item_details": [
+          { "name": "Espresso beans 1kg", "description": "Dark roast", "price": 6.5, "quantity": 2 }
+        ],
+        "instructions": {
+          "notes": "Ask for the dispatch desk at gate 2.",
+          "attachments": [
+            { "file_name": "packing-list.pdf", "url": "https://files.example.com/packing-list.pdf" }
+          ]
+        }
+      },
+      "drop-off": {
+        "latitude": 29.376,
+        "longitude": 47.977,
+        "name": "Sara Al-Ali",
+        "mobile": "77669900"
+      },
+      "supplier_reference_id": "SHOP-1002",
+      "payment_type": 2,
+      "total_amount": 13.000,
+      "schedule": {
+        "delivery_time_slot_start": "2026-11-01 15:00:00",
+        "delivery_time_slot_end": "2026-11-01 16:00:00"
+      }
+    }
+  ]
+}
+```
+
+## Response
+
+`200 OK` — one entry per order created, in the order you sent them.
+
+```json
+{
+  "status": true,
+  "message": "Success",
+  "data": [
+    { "order_id": 19444, "supplier_reference_id": "SHOP-1001" },
+    { "order_id": 19445, "supplier_reference_id": "SHOP-1002" }
+  ]
+}
+```
+
+<ParamTable
+  title="data[] fields"
+  params={[
+    { name: 'order_id', type: 'integer', required: true, description: 'The platform order id. Store it — this is what Track Order and Cancel Orders take.' },
+    { name: 'supplier_reference_id', type: 'string', required: true, description: 'Echoes the reference you sent, so you can match entries to your own records.' },
+  ]}
+/>
+
+## Batch behaviour
+
+The whole batch is created inside **one database transaction**. If any order fails validation, the
+transaction rolls back and **no orders are created** — you get a single `400` describing the first
+failure, not a per-order result.
+
+This is different from [Cancel Orders](/api/partner/cancel-orders), which reports a per-order
+outcome. Create is all-or-nothing.
+
+:::tip Keep batches small enough to debug
+Because the error names one problem for the whole batch, very large batches are awkward to diagnose.
+Sending orders in modest groups makes it obvious which one the platform rejected.
+:::
+
+## Retries and duplicates
+
+There is no idempotency key on this endpoint, and `supplier_reference_id` is **not** enforced as
+unique — resending the same payload creates a second order with the same reference.
+
+If a create request times out and you do not know whether it landed, do not blindly retry. Instead:
+
+1. Retry only on a `500` or a network-level failure, never on a `400`.
+2. After an ambiguous failure, reconcile before resending — a duplicate reference will otherwise
+   produce two live deliveries.
+
+## Errors
+
+All failures use the [simple envelope](/getting-started/response-format#partner-api-envelope):
+`{"status": false, "message": "..."}`.
+
+<ErrorTable
+  errors={[
+    { status: 400, when: <><code>Invalid Request, please enter the drop_off details</code> — the <code>drop-off</code> object is missing or empty.</> },
+    { status: 400, when: <><code>Invalid drop off details</code> — <code>drop-off</code> has neither a coordinate pair nor an <code>area</code>.</> },
+    { status: 400, when: <><code>Please provide customer location or area</code> — the drop-off resolved to neither a point nor a known area.</> },
+    { status: 400, when: <><code>Invalid Drop off location</code> — the coordinates fall outside every configured delivery area.</> },
+    { status: 400, when: <><code>Invalid pickup details, please enter valid latitude and longitude</code> — one of the pickup coordinates was sent without the other.</> },
+    { status: 400, when: <><code>Invalid request, the following pickup details are missing: …</code> — a <code>pickup</code> object was sent without all four of latitude, longitude, name and mobile.</> },
+    { status: 400, when: <><code>Invalid Pickup location</code> — the pickup coordinates fall outside every configured area.</> },
+    { status: 400, when: <><code>Invalid payment type</code> — <code>payment_type</code> was absent, or not <code>1</code> or <code>2</code>.</> },
+    { status: 400, when: <><code>Invalid order item details: Missing fields …</code> — an <code>item_details</code> entry omitted one of name, description, price or quantity.</> },
+    { status: 400, when: <><code>Invalid schedule details</code> — <code>schedule</code> was not an object, or a slot boundary was missing.</> },
+    { status: 400, when: <><code>Invalid datetime format for 'delivery_time_slot_start'</code> (or <code>_end</code>) — the value did not parse as <code>YYYY-MM-DD HH:MM:SS</code>.</> },
+    { status: 400, when: <><code>Please choose an 'delivery_time_slot_start' after …</code> — the window opens inside the preparation buffer. The message names the earliest acceptable time.</> },
+    { status: 400, when: <><code>'delivery_time_slot_end' should be greater than 'delivery_time_slot_start'</code>.</> },
+    { status: 400, when: <><code>Invalid order pickup instruction notes</code> — <code>instructions.notes</code> was not a string.</> },
+    { status: 400, when: <><code>Invalid order pickup instruction attachment data: Missing fields …</code> — an attachment omitted <code>file_name</code> or <code>url</code>.</> },
+    { status: 400, when: <><code>File extension '…' is not allowed</code> — an attachment is not jpg, jpeg, png or pdf. Malformed names give <code>Invalid file name…</code> variants.</> },
+    { status: 400, when: <><code>Invalid attachment url: …</code> — the URL is not a well-formed http/https URL.</> },
+    { status: 400, when: <><code>Invalid request</code> — <code>supplier_reference_id</code> was missing or empty, or a field failed model validation (for example <code>total_amount</code> absent or not a number).</> },
+    { status: 400, when: <><code>Invalid supplier</code> — the branch behind your key no longer exists.</> },
+    { status: 400, when: <><code>Vehicle type is not configured</code> — your branch has no vehicle type set. Operational configuration; contact Allow MENA.</> },
+    { status: 401, when: <>Missing, unknown, revoked or expired <code>x-api-key</code>. See <a href="/getting-started/authentication#partner-api-key">Authentication</a>.</> },
+    { status: 500, when: <><code>Something went wrong</code> — unhandled server error. Safe to retry with backoff.</> },
+  ]}
+/>
+
+## Differences from the published Postman collection
+
+:::warning The Postman v3 example body is malformed
+The published collection's v3 **Create Order** example nests a second `drop-off` object *inside*
+`drop-off`, and places `payment_type`, `total_amount` and `supplier_reference_id` inside that nested
+object rather than at the order level.
+
+Sent as published, that body fails with `Invalid payment type`, because the backend reads
+`payment_type` from the order object, not from `drop-off`.
+
+Use the structure documented on this page: `drop-off`, `pickup`, `supplier_reference_id`,
+`payment_type`, `total_amount` and `schedule` are **all siblings** at the order level. The
+collection also omits `schedule`, `item_details` and `collection_method` from its v3 example,
+though the backend accepts all three.
+:::

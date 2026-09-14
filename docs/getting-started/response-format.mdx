@@ -1,0 +1,109 @@
+---
+id: response-format
+title: Response format
+sidebar_label: Response Format
+sidebar_position: 5
+description: The two success envelopes used across the Allow MENA Delivery API and how list responses are shaped.
+---
+
+# Response format
+
+Every successful response is a JSON object with `status: true`. What sits beside it depends on the
+service.
+
+## Partner API envelope
+
+Endpoints under `/api/v{1,2,3}/external` return three fields and nothing else:
+
+```json
+{
+  "status": true,
+  "message": "Success",
+  "data": { }
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `status` | boolean | Always `true` on success. |
+| `message` | string | Almost always the literal `"Success"`. Not a contract — do not parse it. |
+| `data` | object \| array | The payload. Shape is per-endpoint; batch endpoints return an array. |
+
+`data` is never omitted: an endpoint with nothing to return sends `{}`.
+
+## Service, operations and driver envelope
+
+Endpoints under `/api/v1/internal`, `/api/v1/web-app` and `/api/v1/driver` add a `status_code`:
+
+```json
+{
+  "status": true,
+  "status_code": 200,
+  "message": "Order created successfully.",
+  "data": { }
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `status` | boolean | Always `true`. |
+| `status_code` | integer | Mirrors the HTTP status. |
+| `message` | string | A per-endpoint success message. |
+| `data` | object | The payload. |
+
+### Unpaginated lists
+
+Endpoints returning a plain list put it in `data` and add nothing else:
+
+```json
+{
+  "status": true,
+  "status_code": 200,
+  "message": "Payment types retrieved successfully.",
+  "data": [
+    { "id": 1, "name": "Cash on Delivery", "slug": "cash_on_delivery" },
+    { "id": 2, "name": "Online", "slug": "online" }
+  ]
+}
+```
+
+### Paginated lists
+
+Paginated endpoints add `links` and `count` alongside `data`:
+
+```json
+{
+  "status": true,
+  "status_code": 200,
+  "message": "Suppliers fetched successfully",
+  "data": [
+    { "id": 12, "supplierName": "Bright Foods" }
+  ],
+  "links": {
+    "limit": 8,
+    "offset": 0,
+    "next": "https://sandboxapi.allowmena.com/api/v1/web-app/suppliers?limit=8&offset=8",
+    "previous": null
+  },
+  "count": 34
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `data` | array | The current page of records. |
+| `links.limit` | integer | Page size that was applied. |
+| `links.offset` | integer | Records skipped. |
+| `links.next` | string \| null | Absolute URL of the next page, `null` on the last page. |
+| `links.previous` | string \| null | Absolute URL of the previous page, `null` on the first page. |
+| `count` | integer | Total records matching the query, across all pages. |
+
+`next` and `previous` preserve every other query parameter you sent — filters, search terms and
+sort order — and change only `limit` and `offset`. Follow them rather than building page URLs
+yourself. See [Pagination](/concepts/pagination) for the parameter names, which differ by endpoint.
+
+:::caution The shape of `data` is not uniform across the platform
+Field naming differs by service and, within the operations API, by module: some responses use
+`snake_case` (`area_id`, `title_en`), others `camelCase` (`supplierName`, `orderId`). Each endpoint
+page shows the exact keys that endpoint returns. There is no global convention to rely on.
+:::

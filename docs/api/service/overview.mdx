@@ -1,0 +1,47 @@
+---
+id: overview
+title: Service API overview
+sidebar_label: Overview
+sidebar_position: 1
+description: The internal service-to-service order API of the Allow MENA Delivery platform, authenticated with a shared X-API-Key.
+---
+
+# Service API
+
+Endpoints under `/api/v1/internal` are **not** for integration partners. They are the
+service-to-service surface other Allow MENA services call, authenticated with a single shared key
+rather than a per-partner one.
+
+:::info Partners want the other one
+If you are a merchant integrating your shop with Allow MENA, the endpoints you need are under
+[Partner Orders](/api/partner/overview). Reading this section will not help you — and your
+`x-api-key` will not authenticate here.
+:::
+
+<Endpoint method="POST" path="/api/v1/internal/orders" auth="X-API-Key header" />
+
+## How it differs from the partner API
+
+| | Partner API | Service API |
+| --- | --- | --- |
+| Header | `x-api-key` | `X-API-Key` |
+| Key scope | One per partner branch | One shared service key |
+| Branch selection | Implicit, from the key | Explicit `supplierBranchId` in the body |
+| Field naming | `snake_case` | `camelCase` |
+| Batch | `orders` array | One order per request |
+| Error envelope | [Simple](/getting-started/errors#simple-envelope) | [Structured](/getting-started/errors#structured-envelope) with `error_code` |
+| Duplicate protection | None | `integrationOrderId` is unique; a repeat returns `409` with the existing order id |
+
+## Endpoints
+
+| Endpoint | Purpose |
+| --- | --- |
+| [Create Order](/api/service/create-order) <Method>POST</Method> | Create a single order on behalf of an integration. |
+| [Get Order](/api/service/get-order) <Method>GET</Method> | Look up an order by platform id or integration id. |
+| [Cancel Order](/api/service/cancel-order) <Method>POST</Method> | Cancel an order. Proxied to Delivery Core. |
+
+## Correlation ids
+
+Send `X-Correlation-ID` with a UUID to tie your request to the platform's logs for that operation.
+[Cancel Order](/api/service/cancel-order) generates one when you omit it; the generated value is not
+returned, so send your own when you need to correlate later.

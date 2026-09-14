@@ -1,0 +1,139 @@
+---
+id: errors
+title: Errors
+sidebar_label: Errors
+sidebar_position: 6
+description: The two error envelopes used by the Allow MENA Delivery API, the machine-readable error codes, and what each HTTP status means.
+---
+
+# Errors
+
+The platform returns **two different error envelopes**, depending on which service handles the
+request. Both always set `status` to `false`, so `status` is the one field you can branch on
+everywhere.
+
+## Simple envelope
+
+Used by the partner API (`/api/v{1,2,3}/external`).
+
+```json
+{
+  "status": false,
+  "message": "Invalid drop off details"
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `status` | boolean | Always `false` on an error. |
+| `message` | string | Human-readable description. Safe to log; not intended for end users. |
+| `status_code` | integer | **Only present on some responses.** Included when the handler passes an internal status code; absent otherwise. Do not depend on it. |
+
+There is no machine-readable error code on this envelope. Branch on the HTTP status, and treat
+`message` as diagnostic text — the wording is not a stable contract.
+
+## Structured envelope
+
+Used by the service API (`/api/v1/internal`), the operations API (`/api/v1/web-app`) and the driver
+API (`/api/v1/driver`).
+
+```json
+{
+  "status": false,
+  "status_code": 400,
+  "error_code": "BAD_REQUEST",
+  "message": "Bad request",
+  "detail": "issued_item_id does not exist"
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `status` | boolean | Always `false`. |
+| `status_code` | integer | The status the service classifies the failure as. Usually matches the HTTP status — see the note on 422 below. |
+| `error_code` | string | Stable, machine-readable code. **Branch on this.** |
+| `message` | string | Short human-readable summary. |
+| `detail` | string \| array \| null | Extra context. A string for application errors, an array for validation failures, `null` when there is nothing to add. |
+
+### Error codes
+
+<ErrorTable
+  errors={[
+    { status: 400, code: 'BAD_REQUEST', when: 'The request was understood but rejected by a business rule.' },
+    { status: 400, code: 'INVALID_OPERATION', when: 'The action is not valid for the resource in its current state.' },
+    { status: 401, code: 'TOKEN_MISSING', when: 'No Authorization header was sent.' },
+    { status: 401, code: 'TOKEN_EXPIRED', when: "The access or refresh token's exp has passed." },
+    { status: 401, code: 'INVALID_TOKEN', when: 'Bad signature, missing claim, or an invalidated driver session.' },
+    { status: 401, code: 'INVALID_CREDENTIALS', when: 'Driver login: email not found, or password mismatch.' },
+    { status: 401, code: 'API_KEY_MISSING', when: 'Service API: no X-API-Key header.' },
+    { status: 401, code: 'INVALID_API_KEY', when: 'Service API: the X-API-Key does not match.' },
+    { status: 403, code: 'FORBIDDEN', when: 'Authenticated, but missing the required permission — or the driver account is disabled.' },
+    { status: 404, code: 'NOT_FOUND', when: 'The addressed resource does not exist, or is not visible to the caller.' },
+    { status: 409, code: 'CONFLICT', when: 'The request conflicts with current state, e.g. a duplicate, or a session that moved on.' },
+    { status: 422, code: 'VALIDATION_ERROR', when: 'The request body or query string failed schema validation.' },
+    { status: 500, code: 'INTERNAL_SERVER_ERROR', when: 'An unhandled failure. The cause is logged, never returned.' },
+  ]}
+/>
+
+### Validation errors
+
+A schema validation failure returns HTTP **422** with a `detail` array naming each offending field:
+
+```json
+{
+  "status": false,
+  "status_code": 400,
+  "error_code": "VALIDATION_ERROR",
+  "message": "Validation failed",
+  "detail": [
+    {
+      "loc": ["body", "issue_date"],
+      "msg": "Input should be a valid date",
+      "type": "date_type"
+    }
+  ]
+}
+```
+
+:::caution `status_code` is 400 on a 422 response
+On validation failures the HTTP status is `422` while the envelope's `status_code` field reads
+`400`. This is deliberate in the shared error handler. Read the **HTTP** status, not the body field,
+when you need the real status.
+:::
+
+### Server errors
+
+A 500 never carries the underlying exception text — the message is logged server-side and `detail`
+is `null`, so database, table and column names are not leaked to callers:
+
+```json
+{
+  "status": false,
+  "status_code": 500,
+  "error_code": "INTERNAL_SERVER_ERROR",
+  "message": "Internal server error",
+  "detail": null
+}
+```
+
+## Status codes at a glance
+
+| Status | Meaning here |
+| --- | --- |
+| `200` | Success. |
+| `201` | Created — returned by the resource-creating operations endpoints. |
+| `204` | Deleted, no body. Only `DELETE /api/v1/web-app/suppliers/{supplier_id}`. |
+| `207` | Multi-Status — a batch where some items succeeded and some failed. Only [Cancel Orders](/api/partner/cancel-orders). |
+| `400` | Rejected by validation or a business rule. |
+| `401` | Missing, malformed, expired or revoked credentials. |
+| `403` | Authenticated, but not permitted. |
+| `404` | Not found, or not yours. |
+| `409` | Conflicts with current state. |
+| `422` | Schema validation failed. |
+| `500` | Unhandled server error. |
+
+:::note 429 is not returned
+No rate-limiting middleware is configured in the backend, and no endpoint returns `429`. If your
+client has retry logic keyed on `429`, it will not trigger against this API. Treat `500` as the
+retryable status, with backoff.
+:::

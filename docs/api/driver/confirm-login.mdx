@@ -1,0 +1,118 @@
+---
+id: confirm-login
+title: Confirm Login
+sidebar_label: Confirm Login
+sidebar_position: 3
+description: Complete a driver device switch by consuming the single-use confirmation token issued by login.
+---
+
+# Confirm Login
+
+<Endpoint method="POST" path="/api/v1/driver/auth/confirm-login" publicAccess />
+
+Completes a device switch. Call this only after [Login](/api/driver/login) returned
+`nextAction: "CONFIRM_DEVICE_SWITCH"` and the driver confirmed they want to sign out the other
+device.
+
+On success the previous session is invalidated, a new one is created for this device, and tokens are
+returned. The driver's other device stops working immediately.
+
+## Request body
+
+<ParamTable
+  params={[
+    { name: 'confirmationToken', type: 'string (uuid)', required: true, description: 'The token returned by Login. Single-use and valid for 2 minutes.', example: '"8f3c2a2c-8e2f-4b7c-9f2f-6a2b8c1e2d3f"' },
+  ]}
+/>
+
+## Request example
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="cURL">
+
+```bash
+curl --request POST \
+  --url 'https://sandboxapi.allowmena.com/api/v1/driver/auth/confirm-login' \
+  --header 'Content-Type: application/json' \
+  --data '{ "confirmationToken": "8f3c2a2c-8e2f-4b7c-9f2f-6a2b8c1e2d3f" }'
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+import requests
+
+response = requests.post(
+    "https://sandboxapi.allowmena.com/api/v1/driver/auth/confirm-login",
+    json={"confirmationToken": "8f3c2a2c-8e2f-4b7c-9f2f-6a2b8c1e2d3f"},
+    timeout=30,
+)
+response.raise_for_status()
+
+tokens = response.json()["data"]["tokens"]
+print(tokens["accessToken"])
+```
+
+</TabItem>
+<TabItem value="js" label="JavaScript">
+
+```javascript
+const response = await fetch(
+  'https://sandboxapi.allowmena.com/api/v1/driver/auth/confirm-login',
+  {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ confirmationToken: '8f3c2a2c-8e2f-4b7c-9f2f-6a2b8c1e2d3f' }),
+  },
+);
+
+const { data } = await response.json();
+console.log(data.tokens.accessToken);
+```
+
+</TabItem>
+</Tabs>
+
+## Response
+
+`200 OK`
+
+```json
+{
+  "status": true,
+  "status_code": 200,
+  "message": "Success",
+  "data": {
+    "tokens": {
+      "accessToken": "eyJhbGciOiJIUzI1NiIs...",
+      "refreshToken": "eyJhbGciOiJIUzI1NiIs..."
+    },
+    "driverInfo": { "id": 42 }
+  }
+}
+```
+
+<ParamTable
+  title="data fields"
+  params={[
+    { name: 'tokens.accessToken', type: 'string', required: true, description: 'Access JWT, valid 1 hour.' },
+    { name: 'tokens.refreshToken', type: 'string', required: true, description: 'Refresh JWT, valid 24 hours.' },
+    { name: 'driverInfo.id', type: 'integer', required: true, description: 'The driver id.' },
+  ]}
+/>
+
+Unlike [Login](/api/driver/login), `tokens` and `driverInfo` are always present here — there is only
+one successful outcome.
+
+## Errors
+
+<ErrorTable
+  errors={[
+    { status: 401, code: 'INVALID_TOKEN', when: <>The confirmation token is unknown, already used, or has passed its 2-minute window. Start again from <a href="/api/driver/login">Login</a>.</> },
+    { status: 403, code: 'FORBIDDEN', when: <>The driver account became inactive or disabled since login.</> },
+    { status: 409, code: 'CONFLICT', when: <>The active session changed since the token was issued — for example the driver signed in somewhere else in the meantime. Start again from Login.</> },
+    { status: 422, code: 'VALIDATION_ERROR', when: <><code>confirmationToken</code> is missing or is not a valid UUID.</> },
+    { status: 500, code: 'INTERNAL_SERVER_ERROR', when: <>Unhandled server error.</> },
+  ]}
+/>

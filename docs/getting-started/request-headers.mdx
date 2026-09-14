@@ -1,0 +1,55 @@
+---
+id: request-headers
+title: Request headers
+sidebar_label: Request Headers
+sidebar_position: 4
+description: Which HTTP headers the Allow MENA Delivery API requires, accepts and ignores.
+---
+
+# Request headers
+
+## Required
+
+| Header | Value | Applies to |
+| --- | --- | --- |
+| `x-api-key` | Your partner API key | `/api/v{1,2,3}/external/**` |
+| `X-API-Key` | The shared service key | `/api/v1/internal/**` |
+| `Authorization` | `Bearer YOUR_TOKEN` | `/api/v1/web-app/**`, `/api/v1/driver/**` (except login, confirm-login and refresh-token) |
+| `Content-Type` | `application/json` | Any request that sends a body |
+
+HTTP header names are case-insensitive, so `X-Api-Key` and `x-api-key` are equivalent. This
+documentation writes each header the way the backend spells it.
+
+## Optional
+
+| Header | Value | Behaviour |
+| --- | --- | --- |
+| `X-Correlation-ID` | A UUID | Service API only. Ties your request to the platform's logs for that operation. If you omit it on `/api/v1/internal/orders/{order_id}/cancel`, the service generates one; it is not echoed back, so send your own when you want to correlate. |
+| `Accept` | `application/json` | Responses are JSON regardless; sending it changes nothing. |
+
+## Not used
+
+- **No API version header.** The version is in the path — see [Base URL & versions](/getting-started/base-url).
+- **No idempotency key.** There is no idempotency mechanism. For create-order, use your own
+  `supplier_reference_id` and reconcile via [Track Order](/api/partner/track-order) rather than
+  blindly retrying — see [the note on retries](/api/partner/create-order-v3#retries-and-duplicates).
+- **No CSRF token.** The API surfaces are token-authenticated, not cookie-authenticated.
+
+## A complete request
+
+```bash
+curl --request POST \
+  --url 'https://sandboxapi.allowmena.com/api/v3/external/orders' \
+  --header 'x-api-key: YOUR_API_KEY' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "orders": [
+      {
+        "drop-off": { "latitude": 29.320556, "longitude": 48.037866, "name": "Sara", "mobile": "77669900" },
+        "supplier_reference_id": "SHOP-1001",
+        "payment_type": 1,
+        "total_amount": 45
+      }
+    ]
+  }'
+```

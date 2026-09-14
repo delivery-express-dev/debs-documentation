@@ -1,0 +1,166 @@
+.root {
+  margin-bottom: 1rem;
+}
+
+.hero {
+  padding: 0.5rem 0 2.25rem;
+  border-bottom: 1px solid var(--allow-border);
+  margin-bottom: 2.25rem;
+}
+
+.eyebrow {
+  font-size: 0.74rem;
+  font-weight: 650;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ifm-color-primary);
+  margin: 0 0 0.6rem;
+}
+
+.title {
+  font-size: 2.6rem;
+  line-height: 1.12;
+  letter-spacing: -0.032em;
+  font-weight: 700;
+  margin: 0 0 0.85rem;
+}
+
+.lede {
+  font-size: 1.08rem;
+  line-height: 1.6;
+  color: var(--allow-text-muted);
+  max-width: 42rem;
+  margin: 0 0 1.6rem;
+}
+
+.ctas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.ctaPrimary,
+.ctaSecondary {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.9rem;
+  font-weight: 580;
+  padding: 0.56rem 1.05rem;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.ctaPrimary {
+  background: var(--ifm-color-primary);
+  color: #fff;
+}
+.ctaPrimary:hover {
+  background: var(--ifm-color-primary-dark);
+  color: #fff;
+  text-decoration: none;
+}
+
+[data-theme='dark'] .ctaPrimary {
+  /* The light-mode lavender is too low-contrast as a button fill on dark. */
+  background: #7c3aed;
+  color: #fff;
+}
+[data-theme='dark'] .ctaPrimary:hover {
+  background: #8b4ff0;
+}
+
+.ctaSecondary {
+  background: var(--allow-surface);
+  border-color: var(--allow-border-strong);
+  color: var(--ifm-font-color-base);
+}
+.ctaSecondary:hover {
+  background: var(--allow-surface-sunken);
+  color: var(--ifm-font-color-base);
+  text-decoration: none;
+}
+
+.section {
+  margin-bottom: 2.5rem;
+}
+
+.sectionTitle {
+  font-size: 0.76rem;
+  font-weight: 650;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--allow-text-muted);
+  margin: 0 0 0.9rem;
+  padding: 0;
+  border: none;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15.5rem, 1fr));
+  gap: 0.85rem;
+}
+
+.card {
+  position: relative;
+  display: block;
+  padding: 1.05rem 1.1rem 1.15rem;
+  border: 1px solid var(--allow-border);
+  border-radius: 10px;
+  background: var(--allow-surface);
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.card:hover {
+  border-color: var(--ifm-color-primary);
+  background: var(--allow-surface-subtle);
+  text-decoration: none;
+}
+
+.cardTitle {
+  font-size: 0.97rem;
+  font-weight: 640;
+  margin: 0 0 0.35rem;
+  color: var(--ifm-heading-color);
+  letter-spacing: -0.008em;
+}
+
+.cardBody {
+  font-size: 0.86rem;
+  line-height: 1.55;
+  color: var(--allow-text-muted);
+  margin: 0;
+}
+
+.cardBody code {
+  font-size: 0.82em;
+}
+
+.cardArrow {
+  position: absolute;
+  top: 1.05rem;
+  right: 1.1rem;
+  font-size: 0.9rem;
+  color: var(--allow-border-strong);
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.card:hover .cardArrow {
+  color: var(--ifm-color-primary);
+  transform: translateX(2px);
+}
+
+@media (max-width: 640px) {
+  .title {
+    font-size: 2rem;
+  }
+  .lede {
+    font-size: 1rem;
+  }
+  .ctaPrimary,
+  .ctaSecondary {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+}

@@ -1,0 +1,71 @@
+---
+id: overview
+title: Operations API overview
+sidebar_label: Overview
+sidebar_position: 1
+description: The Allow MENA operations portal API — suppliers, issued items, cash reconciliation, reports and reference data, authorised by feature codes.
+---
+
+# Operations API
+
+Endpoints under `/api/v1/web-app` serve the Allow MENA operations portal. They manage the business
+behind deliveries: suppliers, driver equipment, cash reconciliation and reporting.
+
+<Endpoint method="GET" path="/api/v1/web-app/..." auth="Bearer token" permission="read-supplier" />
+
+:::info Not a partner surface
+These endpoints are for the internal portal and the teams that build it. Integration partners use
+[Partner Orders](/api/partner/overview).
+:::
+
+## Authorisation
+
+Every endpoint requires a valid [bearer token](/getting-started/authentication#bearer-tokens) **and**
+a feature code granted to that user. Each endpoint page names the code it needs, for example
+`read-driver_performance_report`.
+
+Where a page lists several codes, **any one** of them grants access. The super admin (user id `1`)
+bypasses the check entirely. See [Permissions](/concepts/permissions).
+
+## Modules
+
+| Module | What it covers |
+| --- | --- |
+| [Suppliers](/api/operations/suppliers/list-suppliers) | Supplier records and their owning user accounts. |
+| [Issued Items](/api/operations/issued-items/list-issued-items) | The catalogue of equipment that can be issued to drivers. |
+| [Driver Issued Items](/api/operations/driver-issued-items/list-driver-issued-items) | Per-driver ledger of what has been issued and returned. |
+| [Orders](/api/operations/orders/collect-cash) | Cash collection, deposits, and post-delivery corrections. |
+| [Reports](/api/operations/reports/driver-performance) | Attendance, branch financials and driver performance. |
+| [Locations](/api/operations/resolve-location) | Resolve coordinates to an area and block. |
+| [Reference Data](/api/operations/reference-data) | The thirteen lookup lists the portal's dropdowns are built from. |
+| [Health](/api/operations/health) | Liveness probe. |
+
+## Conventions, and where they break
+
+This surface grew in stages, and it shows. Three things are **not** consistent across it, so check
+each endpoint page rather than generalising:
+
+### Field naming
+
+Some modules return `snake_case`, others `camelCase`:
+
+| Module | Style | Example |
+| --- | --- | --- |
+| Issued Items, Driver Issued Items, Locations, Reference Data | `snake_case` | `title_en`, `area_id` |
+| Suppliers, Reports, Orders | `camelCase` | `supplierName`, `orderId` |
+
+### Pagination
+
+Three different parameter sets are in use — `limit`/`offset`/`no_page`, `limit`/`offset`/`noPage`,
+and `page`/`per_page`. The response envelope is the same in all three cases. See
+[Pagination](/concepts/pagination) for which endpoints use which.
+
+### Repeated query parameters
+
+The driver performance report's filters are **repeated** parameters, not comma-separated lists:
+
+```text
+?supplierIds=12&supplierIds=45
+```
+
+Sending `?supplierIds=12,45` does not work. See [Filtering & sorting](/concepts/filtering-sorting).

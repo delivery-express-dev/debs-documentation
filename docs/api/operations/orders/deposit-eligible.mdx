@@ -1,0 +1,142 @@
+---
+id: deposit-eligible
+title: List Deposit-Eligible Orders
+sidebar_label: Deposit-Eligible Orders
+sidebar_position: 2
+description: Paginated list of a driver's delivered cash-on-delivery orders that are ready to be settled by a deposit.
+---
+
+# List Deposit-Eligible Orders
+
+<Endpoint
+  method="GET"
+  path="/api/v1/web-app/orders/deposit-eligible"
+  auth="Bearer token"
+  permission="read-order_deposit"
+/>
+
+Lists the orders a given driver has delivered that are ready to be settled via the
+[Deposit](/api/operations/orders/deposit) action.
+
+An order qualifies when it is **Cash on Delivery**, already has a **Debit** transaction recorded
+against the driver's wallet (which happens at delivery), and has **not** yet been cash collected.
+
+Use it to build the selection screen an operator ticks through before confirming a driver's cash
+hand-in.
+
+## Query parameters
+
+<ParamTable
+  params={[
+    { name: 'driver_id', type: 'integer', required: true, description: 'The driver to list eligible orders for. Must be 1 or greater.', example: '7' },
+    { name: 'search', type: 'string', required: false, description: 'Case-insensitive substring match on order id or supplier branch name.', example: 'salmiya' },
+    { name: 'page', type: 'integer', required: false, default: '1', description: 'Page number, starting at 1.', example: '2' },
+    { name: 'per_page', type: 'integer', required: false, description: 'Page size, between 1 and 100.', example: '50' },
+  ]}
+/>
+
+## Request example
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="cURL">
+
+```bash
+curl --request GET \
+  --url 'https://sandboxapi.allowmena.com/api/v1/web-app/orders/deposit-eligible?driver_id=7&per_page=50' \
+  --header 'Authorization: Bearer YOUR_TOKEN'
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+import os
+from decimal import Decimal
+
+import requests
+
+response = requests.get(
+    "https://sandboxapi.allowmena.com/api/v1/web-app/orders/deposit-eligible",
+    headers={"Authorization": f"Bearer {os.environ['ALLOW_TOKEN']}"},
+    params={"driver_id": 7, "per_page": 50},
+    timeout=30,
+)
+response.raise_for_status()
+
+orders = response.json()["data"]
+total = sum(Decimal(order["amount"]) for order in orders)
+print(f"{len(orders)} orders, {total} due")
+```
+
+</TabItem>
+<TabItem value="js" label="JavaScript">
+
+```javascript
+const url = new URL(
+  'https://sandboxapi.allowmena.com/api/v1/web-app/orders/deposit-eligible',
+);
+url.searchParams.set('driver_id', '7');
+url.searchParams.set('per_page', '50');
+
+const response = await fetch(url, {
+  headers: { Authorization: `Bearer ${process.env.ALLOW_TOKEN}` },
+});
+
+const orders = (await response.json()).data;
+console.log(`${orders.length} orders eligible`);
+```
+
+</TabItem>
+</Tabs>
+
+## Response
+
+`200 OK`
+
+```json
+{
+  "status": true,
+  "status_code": 200,
+  "message": "Deposit eligible orders fetched successfully",
+  "data": [
+    {
+      "orderId": 19444,
+      "amount": "45.500",
+      "supplierBranchName": "Bright Foods — Salmiya",
+      "deliveredAt": "2026-09-01T10:53:31Z",
+      "debitTrxId": 90211,
+      "isCollected": false
+    }
+  ],
+  "links": { "limit": 50, "offset": 0, "next": null, "previous": null },
+  "count": 1
+}
+```
+
+<ParamTable
+  title="data[] fields"
+  params={[
+    { name: 'orderId', type: 'integer', required: true, description: <>The eligible order. Pass these ids to <a href="/api/operations/orders/deposit">Deposit</a>.</> },
+    { name: 'amount', type: 'string (decimal)', required: true, description: 'Amount due on delivery for this order. A string, to preserve decimal precision.' },
+    { name: 'supplierBranchName', type: 'string', required: true, description: "The order's supplier branch." },
+    { name: 'deliveredAt', type: 'string (date-time) | null', required: false, description: 'When the order was marked Delivered.' },
+    { name: 'debitTrxId', type: 'integer', required: true, description: "Id of the Debit wallet transaction recorded when the order became Delivered — the liability this deposit settles." },
+    { name: 'isCollected', type: 'boolean', required: true, description: "Whether the order's Debit transaction already has a settling Credit against it." },
+  ]}
+/>
+
+:::note `amount` is a string
+Monetary amounts come back as strings so decimal precision survives JSON. Parse with a decimal type,
+not a float, before summing.
+:::
+
+## Errors
+
+<ErrorTable
+  errors={[
+    { status: 401, code: 'TOKEN_MISSING', when: <>No <code>Authorization</code> header.</> },
+    { status: 403, code: 'FORBIDDEN', when: <>The token lacks <code>read-order_deposit</code>.</> },
+    { status: 422, code: 'VALIDATION_ERROR', when: <><code>driver_id</code> is missing or below 1, or <code>per_page</code> is outside 1–100.</> },
+    { status: 500, code: 'INTERNAL_SERVER_ERROR', when: <>Unhandled server error.</> },
+  ]}
+/>

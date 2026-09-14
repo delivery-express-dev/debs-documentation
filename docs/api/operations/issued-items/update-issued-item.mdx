@@ -1,0 +1,140 @@
+---
+id: update-issued-item
+title: Update Issued Item
+sidebar_label: Update Issued Item
+sidebar_position: 4
+description: Partially update an Allow MENA issued-items catalogue entry, or retire it by setting status to INACTIVE.
+---
+
+# Update Issued Item
+
+<Endpoint
+  method="PATCH"
+  path="/api/v1/web-app/issued-items/{issued_item_id}"
+  auth="Bearer token"
+  permission="update-issued_items"
+/>
+
+Partially updates a catalogue entry. Send only the fields you are changing.
+
+This is also **how an entry is retired**: patch `status` to `INACTIVE`. There is no `DELETE`
+endpoint for issued items.
+
+## Path parameters
+
+<ParamTable
+  params={[
+    { name: 'issued_item_id', type: 'integer', required: true, description: 'The catalogue entry to update.', example: '4' },
+  ]}
+/>
+
+## Request body
+
+<ParamTable
+  params={[
+    { name: 'title_en', type: 'string', required: false, description: 'New English title, at most 150 characters.' },
+    { name: 'title_ar', type: 'string', required: false, description: 'New Arabic title, at most 150 characters.' },
+    { name: 'status', type: 'string', required: false, values: ['ACTIVE', 'INACTIVE'], description: 'Set to INACTIVE to retire the entry. An INACTIVE entry can no longer be issued to a driver.' },
+    { name: 'category_code', type: 'string', required: false, description: 'Immutable. Present in the schema, but sending it — even with the current value — returns 400.' },
+  ]}
+/>
+
+:::caution `category_code` cannot be changed
+It appears in the request schema but is rejected: sending it returns `400 category_code is
+immutable`. If an item is in the wrong category, retire it and create a new entry.
+:::
+
+## Request example
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="cURL">
+
+```bash
+# Rename
+curl --request PATCH \
+  --url 'https://sandboxapi.allowmena.com/api/v1/web-app/issued-items/4' \
+  --header 'Authorization: Bearer YOUR_TOKEN' \
+  --header 'Content-Type: application/json' \
+  --data '{ "title_en": "Safety helmet (large)" }'
+
+# Retire
+curl --request PATCH \
+  --url 'https://sandboxapi.allowmena.com/api/v1/web-app/issued-items/4' \
+  --header 'Authorization: Bearer YOUR_TOKEN' \
+  --header 'Content-Type: application/json' \
+  --data '{ "status": "INACTIVE" }'
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+import os
+import requests
+
+BASE = "https://sandboxapi.allowmena.com/api/v1/web-app/issued-items/4"
+HEADERS = {
+    "Authorization": f"Bearer {os.environ['ALLOW_TOKEN']}",
+    "Content-Type": "application/json",
+}
+
+# Rename
+requests.patch(BASE, headers=HEADERS, json={"title_en": "Safety helmet (large)"}, timeout=30)
+
+# Retire — there is no DELETE endpoint for issued items.
+requests.patch(BASE, headers=HEADERS, json={"status": "INACTIVE"}, timeout=30)
+```
+
+</TabItem>
+<TabItem value="js" label="JavaScript">
+
+```javascript
+const base = 'https://sandboxapi.allowmena.com/api/v1/web-app/issued-items/4';
+const headers = {
+  Authorization: `Bearer ${process.env.ALLOW_TOKEN}`,
+  'Content-Type': 'application/json',
+};
+
+// Rename
+await fetch(base, { method: 'PATCH', headers, body: JSON.stringify({ title_en: 'Safety helmet (large)' }) });
+
+// Retire — there is no DELETE endpoint for issued items.
+await fetch(base, { method: 'PATCH', headers, body: JSON.stringify({ status: 'INACTIVE' }) });
+```
+
+</TabItem>
+</Tabs>
+
+## Response
+
+`200 OK` — the updated entry.
+
+```json
+{
+  "status": true,
+  "status_code": 200,
+  "message": "Issued item updated successfully",
+  "data": {
+    "id": 4,
+    "category_code": "HLMT001",
+    "title_en": "Safety helmet (large)",
+    "title_ar": "خوذة أمان",
+    "status": "ACTIVE",
+    "created_at": "2026-01-14 09:02:11",
+    "updated_at": "2026-09-13 11:41:02"
+  }
+}
+```
+
+## Errors
+
+<ErrorTable
+  errors={[
+    { status: 400, code: 'BAD_REQUEST', when: <><code>category_code is immutable</code> — the field was present in the payload.</> },
+    { status: 401, code: 'TOKEN_MISSING', when: <>No <code>Authorization</code> header.</> },
+    { status: 403, code: 'FORBIDDEN', when: <>The token lacks <code>update-issued_items</code>.</> },
+    { status: 404, code: 'NOT_FOUND', when: <><code>Issued item not found</code> — no catalogue entry with that id.</> },
+    { status: 422, code: 'VALIDATION_ERROR', when: <><code>status</code> is not ACTIVE or INACTIVE, or a title exceeds 150 characters.</> },
+    { status: 500, code: 'INTERNAL_SERVER_ERROR', when: <>Unhandled server error.</> },
+  ]}
+/>

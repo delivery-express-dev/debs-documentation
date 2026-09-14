@@ -1,0 +1,102 @@
+---
+id: logout
+title: Driver Logout
+sidebar_label: Logout
+sidebar_position: 5
+description: Invalidate a driver's session so their outstanding access tokens stop working immediately.
+---
+
+# Driver Logout
+
+<Endpoint method="POST" path="/api/v1/driver/auth/logout" auth="Bearer token" />
+
+Invalidates the caller's session. Because tokens are checked against the session row on every
+request, the driver's outstanding access token stops working **immediately** — it does not remain
+valid until `exp`.
+
+## Request
+
+No body, no query parameters. The session to end is identified from the access token.
+
+<ParamTable
+  title="Headers"
+  params={[
+    { name: 'Authorization', type: 'string', required: true, description: "Bearer YOUR_TOKEN — the driver's access token.", example: '"Bearer eyJhbGciOiJIUzI1NiIs..."' },
+  ]}
+/>
+
+## Request example
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="cURL">
+
+```bash
+curl --request POST \
+  --url 'https://sandboxapi.allowmena.com/api/v1/driver/auth/logout' \
+  --header 'Authorization: Bearer YOUR_TOKEN'
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+import requests
+
+response = requests.post(
+    "https://sandboxapi.allowmena.com/api/v1/driver/auth/logout",
+    headers={"Authorization": f"Bearer {access_token}"},
+    timeout=30,
+)
+response.raise_for_status()
+
+# Idempotent: a second call with the same token also returns 200.
+clear_stored_tokens()
+```
+
+</TabItem>
+<TabItem value="js" label="JavaScript">
+
+```javascript
+const response = await fetch('https://sandboxapi.allowmena.com/api/v1/driver/auth/logout', {
+  method: 'POST',
+  headers: { Authorization: `Bearer ${accessToken}` },
+});
+
+// Idempotent: a second call with the same token also returns 200.
+clearStoredTokens();
+```
+
+</TabItem>
+</Tabs>
+
+## Response
+
+`200 OK`
+
+```json
+{
+  "status": true,
+  "status_code": 200,
+  "message": "Success",
+  "data": {}
+}
+```
+
+`data` is always an empty object.
+
+:::note Logout is idempotent
+If the token's session is already gone — the driver logged out earlier, or signed in elsewhere and
+superseded it — the call still returns `200`. It never reports "already logged out" as an error, so
+a client can always call it safely on sign-out.
+:::
+
+## Errors
+
+<ErrorTable
+  errors={[
+    { status: 401, code: 'TOKEN_MISSING', when: <>No <code>Authorization</code> header was sent.</> },
+    { status: 401, code: 'TOKEN_EXPIRED', when: <>The access token has expired. The session may still be active — refresh first, then log out, if you need the session ended.</> },
+    { status: 401, code: 'INVALID_TOKEN', when: <>Bad signature, or a malformed token.</> },
+    { status: 500, code: 'INTERNAL_SERVER_ERROR', when: <>Unhandled server error.</> },
+  ]}
+/>

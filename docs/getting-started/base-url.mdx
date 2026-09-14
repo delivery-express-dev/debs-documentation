@@ -1,0 +1,77 @@
+---
+id: base-url
+title: Base URL & API versions
+sidebar_label: Base URL & Versions
+sidebar_position: 2
+description: The host to call, the four API path prefixes, and how the v1, v2 and v3 partner order APIs differ.
+---
+
+# Base URL & API versions
+
+## Base URL
+
+The sandbox environment published with the partner collection is:
+
+```text
+https://sandboxapi.allowmena.com
+```
+
+All examples in this documentation use that host. Requests are served over HTTPS only.
+
+:::caution Production host
+The repository does not pin a production hostname — it is supplied per deployment through the
+`ALLOWED_HOSTS` environment variable. Ask the Allow MENA integrations team for the production base
+URL for your account; do not assume it by pattern from the sandbox host.
+:::
+
+## Path prefixes
+
+Every route lives under `/api/`, followed by a version segment and then an audience segment. The
+audience segment is what decides which credential you send.
+
+| Prefix | Audience | Credential |
+| --- | --- | --- |
+| `/api/v1/external`, `/api/v2/external`, `/api/v3/external` | Integration partners | `x-api-key` |
+| `/api/v1/internal` | Other Allow MENA services | `X-API-Key` |
+| `/api/v1/web-app` | Operations portal | `Authorization: Bearer` |
+| `/api/v1/driver` | Driver mobile app | `Authorization: Bearer` |
+
+## Versioning
+
+Versioning is **in the URL path**, and only the partner-facing order API has more than one version.
+`/api/v1/internal`, `/api/v1/web-app` and `/api/v1/driver` each have a single version today.
+
+Versions are additive and independent: `v1`, `v2` and `v3` of the partner order API are all routed
+and all live. A version is chosen per request by the path you call — there is no version header and
+no account-level default.
+
+### Which partner version to use
+
+Use **v3** for new integrations. It is a superset of v2.
+
+| Capability | v1 | v2 | v3 |
+| --- | :--: | :--: | :--: |
+| Create orders in a batch | ✅ | ✅ | ✅ |
+| Pickup coordinates override | ✅ | ✅ | ✅ |
+| Pickup contact (`name`, `mobile`) and address fields | — | ✅ | ✅ |
+| Scheduled delivery windows (`schedule`) | — | ✅ | ✅ |
+| Cart line items (`item_details`) | — | ✅ | ✅ |
+| Collection method (collect vs. buy) | — | ✅ | ✅ |
+| Pickup instruction **notes** | — | ✅ (string) | ✅ (inside `instructions`) |
+| Pickup instruction **attachments** | — | — | ✅ |
+| Drop-off `avenue` field | — | ✅ | ✅ |
+| Cancel orders | — | ✅ | — |
+| Track an order | — | ✅ | — |
+| Read order status | ✅ | — | — |
+| Delivery price quote | ✅ | — | — |
+
+Because cancel and track exist only on `v2`, and the price quote and status lookup only on `v1`, a
+real integration normally **mixes versions**: create on `/api/v3/external/orders`, cancel on
+`/api/v2/external/orders`, track on `/api/v2/external/orders/{order_id}/tracking`. Order ids are
+shared across versions, so an order created on v3 is cancellable and trackable on v2.
+
+:::note Pickup instruction notes changed shape between v2 and v3
+In v2, `pickup.notes` is a **string** recorded as the pickup instruction. In v3 the field moved
+into `pickup.instructions.notes` and gained an `attachments` array. See
+[Create Order (v3)](/api/partner/create-order-v3) and [Create Order (v2)](/api/partner/create-order-v2).
+:::

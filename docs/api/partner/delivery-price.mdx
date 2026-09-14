@@ -1,0 +1,158 @@
+---
+id: delivery-price
+title: Get Delivery Price
+sidebar_label: Get Delivery Price
+sidebar_position: 8
+description: Quote the Allow MENA delivery charge for a route before committing to creating an order.
+---
+
+# Get Delivery Price
+
+<Endpoint method="POST" path="/api/v1/external/order/delivery-price" auth="x-api-key header" />
+
+Quotes the delivery charge for a pickup-to-drop-off route, without creating an order. Use it to show
+a customer the delivery fee at checkout before you commit.
+
+The charge is derived from the straight-line distance between the two points, your branch's
+configured vehicle type, and your branch's pricing configuration.
+
+:::note Note the singular `order` in the path
+This route is `/api/v1/external/**order**/delivery-price`, not `orders`. Every other partner
+endpoint uses the plural.
+:::
+
+## Request body
+
+Unlike the create endpoints, this takes a **single route**, not an `orders` array.
+
+<ParamTable
+  params={[
+    { name: 'pickup', type: 'object', required: false, description: "Collection point. Omit entirely to quote from your branch's registered location." },
+    { name: 'pickup.latitude', type: 'number', required: false, description: 'Decimal degrees. Must be sent together with longitude.', example: '29.320556' },
+    { name: 'pickup.longitude', type: 'number', required: false, description: 'Decimal degrees. Must be sent together with latitude.', example: '48.037866' },
+    { name: 'drop-off', type: 'object', required: true, description: 'Destination. Note the hyphen. Supply either a coordinate pair or an area name.' },
+    { name: 'drop-off.latitude', type: 'number', required: false, description: 'Decimal degrees. Must be sent together with longitude.', example: '29.376' },
+    { name: 'drop-off.longitude', type: 'number', required: false, description: 'Decimal degrees. Must be sent together with latitude.', example: '47.977' },
+    { name: 'drop-off.area', type: 'string', required: false, description: 'Area name, used when no coordinates are given. The area must exist and have a configured boundary, otherwise the request is rejected — unlike Create Order, an unknown area is not accepted here.', example: '"Jabriya"' },
+  ]}
+/>
+
+## Request example
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="cURL">
+
+```bash
+curl --request POST \
+  --url 'https://sandboxapi.allowmena.com/api/v1/external/order/delivery-price' \
+  --header 'x-api-key: YOUR_API_KEY' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "pickup": { "latitude": 29.320556, "longitude": 48.037866 },
+    "drop-off": { "latitude": 29.376, "longitude": 47.977 }
+  }'
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+import os
+import requests
+
+response = requests.post(
+    "https://sandboxapi.allowmena.com/api/v1/external/order/delivery-price",
+    headers={"x-api-key": os.environ["ALLOW_API_KEY"], "Content-Type": "application/json"},
+    json={
+        "pickup": {"latitude": 29.320556, "longitude": 48.037866},
+        "drop-off": {"latitude": 29.376, "longitude": 47.977},
+    },
+    timeout=30,
+)
+
+body = response.json()
+if not body["status"]:
+    raise RuntimeError(f"Quote failed ({response.status_code}): {body['message']}")
+
+print("delivery charge:", body["data"]["delivery_charge"])
+```
+
+</TabItem>
+<TabItem value="js" label="JavaScript">
+
+```javascript
+const response = await fetch(
+  'https://sandboxapi.allowmena.com/api/v1/external/order/delivery-price',
+  {
+    method: 'POST',
+    headers: { 'x-api-key': process.env.ALLOW_API_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      pickup: { latitude: 29.320556, longitude: 48.037866 },
+      'drop-off': { latitude: 29.376, longitude: 47.977 },
+    }),
+  },
+);
+
+const body = await response.json();
+if (!body.status) throw new Error(`Quote failed (${response.status}): ${body.message}`);
+
+console.log('delivery charge:', body.data.delivery_charge);
+```
+
+</TabItem>
+</Tabs>
+
+### Quoting to an area, from the branch address
+
+```json title="Request body"
+{
+  "drop-off": { "area": "Jabriya" }
+}
+```
+
+## Response
+
+`200 OK`
+
+```json
+{
+  "status": true,
+  "message": "Success",
+  "data": {
+    "delivery_charge": 1.250
+  }
+}
+```
+
+<ParamTable
+  title="data fields"
+  params={[
+    { name: 'delivery_charge', type: 'number', required: true, description: 'The quoted delivery fee for this route, in the branch\'s configured currency.' },
+  ]}
+/>
+
+:::caution A quote is not a reservation
+The charge is computed on demand from current configuration. It is not held, and creating the order
+later recomputes it. Treat the value as an estimate to display, not as a locked price.
+:::
+
+## Errors
+
+<ErrorTable
+  errors={[
+    { status: 400, when: <><code>Invalid pickup details</code> — one pickup coordinate was sent without the other.</> },
+    { status: 400, when: <><code>Invalid drop-off location</code> — one drop-off coordinate was sent without the other.</> },
+    { status: 400, when: <><code>Delivery area doesnt exist</code> — no coordinates were given and the <code>area</code> name matches no known area.</> },
+    { status: 400, when: <><code>Area is not configured</code> — the area exists but has no boundary configured to quote against.</> },
+    { status: 400, when: <><code>Invalid supplier branch</code> — the branch behind your key no longer exists.</> },
+    { status: 400, when: <><code>Vehicle type not configured</code> — your branch has no vehicle type set. Operational configuration; contact Allow MENA.</> },
+    { status: 401, when: <>Missing, unknown, revoked or expired <code>x-api-key</code>.</> },
+    { status: 500, when: <><code>Something went wrong</code> — unhandled server error.</> },
+  ]}
+/>
+
+## Not in the published Postman collection
+
+This endpoint is routed and live in the backend but has **no entry in the published Postman
+collection**. It is documented here from the implementation. See the
+[coverage audit](/coverage#in-backend-not-in-postman).

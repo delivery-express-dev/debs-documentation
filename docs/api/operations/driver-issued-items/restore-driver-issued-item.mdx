@@ -1,0 +1,141 @@
+---
+id: restore-driver-issued-item
+title: Restore Driver Issued Item
+sidebar_label: Restore Item
+sidebar_position: 3
+description: Mark an item issued to an Allow MENA driver as returned.
+---
+
+# Restore Driver Issued Item
+
+<Endpoint
+  method="POST"
+  path="/api/v1/web-app/drivers/{driver_id}/issued-items/{assignment_id}/restore"
+  auth="Bearer token"
+  permission="restore-driver_issued_items"
+/>
+
+Marks an issued item as returned. This is a **one-way** transition: `ISSUED` → `RESTORED`. There is
+no un-restore, and a second call on the same assignment is rejected.
+
+## Path parameters
+
+<ParamTable
+  params={[
+    { name: 'driver_id', type: 'integer', required: true, description: 'The driver returning the item.', example: '7' },
+    { name: 'assignment_id', type: 'integer', required: true, description: <>The ledger row id — the <code>id</code> returned by <a href="/api/operations/driver-issued-items/create-driver-issued-item">Issue Item</a>, not the catalogue <code>issued_item_id</code>.</>, example: '331' },
+  ]}
+/>
+
+:::caution `assignment_id`, not `issued_item_id`
+The path takes the **ledger row** id. Passing the catalogue item id here will restore the wrong row,
+or none at all.
+:::
+
+## Request body
+
+<ParamTable
+  params={[
+    { name: 'restored_date', type: 'string (date)', required: true, description: 'When the item came back, YYYY-MM-DD. Must be on or after the assignment\'s issue_date.', example: '"2026-08-14"' },
+  ]}
+/>
+
+## Request example
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="cURL">
+
+```bash
+curl --request POST \
+  --url 'https://sandboxapi.allowmena.com/api/v1/web-app/drivers/7/issued-items/331/restore' \
+  --header 'Authorization: Bearer YOUR_TOKEN' \
+  --header 'Content-Type: application/json' \
+  --data '{ "restored_date": "2026-08-14" }'
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+import os
+import requests
+
+response = requests.post(
+    "https://sandboxapi.allowmena.com/api/v1/web-app/drivers/7/issued-items/331/restore",
+    headers={
+        "Authorization": f"Bearer {os.environ['ALLOW_TOKEN']}",
+        "Content-Type": "application/json",
+    },
+    json={"restored_date": "2026-08-14"},
+    timeout=30,
+)
+
+# 422 Already restored is a no-op, not a failure worth retrying.
+if response.status_code == 422:
+    print(response.json()["message"])
+else:
+    response.raise_for_status()
+    print(response.json()["data"]["status"])
+```
+
+</TabItem>
+<TabItem value="js" label="JavaScript">
+
+```javascript
+const response = await fetch(
+  'https://sandboxapi.allowmena.com/api/v1/web-app/drivers/7/issued-items/331/restore',
+  {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${process.env.ALLOW_TOKEN}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ restored_date: '2026-08-14' }),
+  },
+);
+
+const body = await response.json();
+// 422 Already restored is a no-op, not a failure worth retrying.
+console.log(response.status === 422 ? body.message : body.data.status);
+```
+
+</TabItem>
+</Tabs>
+
+## Response
+
+`200 OK` — the updated ledger row.
+
+```json
+{
+  "status": true,
+  "status_code": 200,
+  "message": "Driver issued item restored successfully",
+  "data": {
+    "id": 331,
+    "issued_item_id": 4,
+    "issued_item_title_en": "Safety helmet",
+    "issued_item_title_ar": "خوذة أمان",
+    "amount": 1,
+    "item_code": "HLM-0099",
+    "issue_date": "2026-02-01",
+    "status": "RESTORED",
+    "restored_date": "2026-08-14",
+    "created_at": "2026-02-01 08:31:44"
+  }
+}
+```
+
+## Errors
+
+<ErrorTable
+  errors={[
+    { status: 401, code: 'TOKEN_MISSING', when: <>No <code>Authorization</code> header.</> },
+    { status: 403, code: 'FORBIDDEN', when: <>The token lacks <code>restore-driver_issued_items</code>.</> },
+    { status: 404, code: 'NOT_FOUND', when: <><code>Driver not found</code>, or <code>Assignment not found</code> — no ledger row with that id for that driver.</> },
+    { status: 422, code: 'UNPROCESSABLE_CONTENT', when: <><code>Already restored</code> — the assignment is already in the RESTORED state. This is the response to a duplicate call.</> },
+    { status: 422, code: 'UNPROCESSABLE_CONTENT', when: <><code>restored_date cannot be before issue_date</code>.</> },
+    { status: 422, code: 'VALIDATION_ERROR', when: <><code>restored_date</code> is missing or is not a valid date.</> },
+    { status: 500, code: 'INTERNAL_SERVER_ERROR', when: <>Unhandled server error.</> },
+  ]}
+/>

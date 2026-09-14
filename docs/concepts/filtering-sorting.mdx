@@ -1,0 +1,118 @@
+---
+id: filtering-sorting
+title: Filtering & sorting
+sidebar_label: Filtering & Sorting
+sidebar_position: 2
+description: How search, multi-value filters and sort order work across the Allow MENA Delivery API.
+---
+
+# Filtering & sorting
+
+## Search
+
+Several list endpoints take a `search` parameter. It is always a **case-insensitive substring**
+match — never a prefix match, and never full-text. What it searches differs per endpoint:
+
+| Endpoint | `search` matches against |
+| --- | --- |
+| [List Suppliers](/api/operations/suppliers/list-suppliers) | Supplier name |
+| [List Issued Items](/api/operations/issued-items/list-issued-items) | `title_en` **or** `title_ar` — a match in either returns the row |
+| [Report Drivers](/api/operations/reports/driver-performance-drivers) | Driver name |
+| [Deposit-Eligible Orders](/api/operations/orders/deposit-eligible) | Order id **or** supplier branch name |
+
+There are no wildcards. A literal `%` or `_` is matched as itself.
+
+## Multi-value filters
+
+The [driver performance report](/api/operations/reports/driver-performance) takes three array
+filters: `supplierIds`, `driverIds` and `orderStatusIds`.
+
+**Repeat the parameter once per value:**
+
+```text
+?supplierIds=12&supplierIds=45&supplierIds=91
+```
+
+:::danger Comma-separated values do not work
+`?supplierIds=12,45` is **rejected** with a `422` validation error, because `12,45` is not an
+integer. This is the single most common mistake against this API. There is no endpoint anywhere on
+the platform that accepts a comma-separated id list.
+:::
+
+### Building the query string correctly
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="cURL">
+
+```bash
+# Each id gets its own occurrence of the parameter.
+curl --request GET \
+  --url 'https://sandboxapi.allowmena.com/api/v1/web-app/reports/driver-performance?supplierIds=12&supplierIds=45&driverIds=7' \
+  --header 'Authorization: Bearer YOUR_TOKEN'
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+# requests repeats the parameter automatically when the value is a list.
+params = {"supplierIds": [12, 45], "driverIds": [7]}
+requests.get(url, params=params, headers=headers, timeout=60)
+# -> ?supplierIds=12&supplierIds=45&driverIds=7
+```
+
+</TabItem>
+<TabItem value="js" label="JavaScript">
+
+```javascript
+const url = new URL(endpoint);
+// append, not set — set() would overwrite the previous value.
+for (const id of [12, 45]) url.searchParams.append('supplierIds', String(id));
+url.searchParams.append('driverIds', '7');
+// -> ?supplierIds=12&supplierIds=45&driverIds=7
+```
+
+</TabItem>
+</Tabs>
+
+The JavaScript case deserves care: `URLSearchParams.set()` replaces any existing value, so a loop
+using `set` leaves you with only the last id. Use `append`.
+
+### Filter semantics
+
+- Values within one filter are **OR**-ed: `supplierIds=12&supplierIds=45` returns orders from either
+  supplier.
+- Different filters are **AND**-ed: adding `driverIds=7` narrows to that driver's orders among those
+  suppliers.
+- Omitting a filter applies no restriction on that dimension.
+
+:::caution Filtering by driver excludes undelivered orders
+On the driver performance report, the driver on each row is **whoever delivered the order**. An order
+that was never delivered has a null driver, so it cannot match any `driverIds` value and silently
+drops out of the result. If you are looking for stuck or cancelled orders, do not filter by driver.
+:::
+
+## Sorting
+
+Only one endpoint exposes sort order: [List Suppliers](/api/operations/suppliers/list-suppliers).
+
+<ParamTable
+  params={[
+    { name: 'sortBy', type: 'string', required: false, values: ['supplier_name', '-supplier_name', 'id', '-id'], description: 'A leading minus sorts descending. Only these four values are accepted; anything else is a validation error.' },
+  ]}
+/>
+
+There is **no general sort parameter**. Every other list endpoint returns rows in the backend's own
+order, which this documentation does not guarantee — sort client-side if order matters to you.
+
+## Date-range filters
+
+Report endpoints filter by date range, but not with the same parameter names:
+
+| Endpoint | Parameters | Required |
+| --- | --- | --- |
+| [Driver Attendance](/api/operations/reports/driver-attendance) | `start_date`, `end_date` | Yes |
+| [Branch Financials](/api/operations/reports/supplier-branch-financials) | `start_date`, `end_date` | Yes |
+| [Driver Performance](/api/operations/reports/driver-performance) | `startDate`, `endDate` | No — both default to today |
+
+All four take `YYYY-MM-DD`. See [Date & time](/concepts/date-time).

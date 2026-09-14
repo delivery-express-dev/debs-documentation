@@ -1,0 +1,170 @@
+---
+id: enumerations
+title: Enumerations
+sidebar_label: Enumerations
+sidebar_position: 5
+description: Every enumerated value used by the Allow MENA Delivery API — order statuses, payment types, collection methods and item categories.
+---
+
+# Enumerations
+
+Every fixed value set used across the platform, in one place.
+
+Two conventions coexist: the partner and service APIs use **numeric ids**, while the newer operations
+modules use **string codes**. Both are listed below.
+
+## Order status
+
+The platform's order lifecycle. Numeric ids are used in the service API and as
+`orderStatusIds` filters; slugs are what the partner API and webhooks send.
+
+| Id | Name | Slug | Meaning |
+| --- | --- | --- | --- |
+| 1 | Created | `created` | Accepted, not yet dispatched. |
+| 2 | Assigned | `assigned` | A driver has taken the order. |
+| 3 | Driver Reached | `driver_reached` | The driver is at the pickup point. |
+| 4 | Picked Up | `picked_up` | The driver has the goods. |
+| 5 | In Progress | `in_progress` | On the way to the customer. |
+| 6 | Hold | `hold` | Paused. Driver details are withheld from tracking while on hold. |
+| 7 | Delivered | `delivered` | Handed over. Terminal. |
+| 8 | Cancelled | `cancelled` | Withdrawn. Terminal. |
+| 9 | Re-Assigned | `re_assigned` | Moved to a different driver. |
+| 10 | Pending | `pending` | Queued, awaiting assignment. |
+| 11 | Scheduled | `scheduled` | Booked for a future delivery window. |
+| 12 | Stacked | `stacked` | Grouped with other orders for a combined run. |
+
+:::caution The Postman collection's webhook sample uses a status that does not exist
+The published collection's order-status webhook example shows
+`{"name": "Picked", "slug": "picked"}`. Neither value is in this table. The real values for that
+transition are `Picked Up` / `picked_up`.
+:::
+
+A thirteenth status, **Pending Fulfilment** (id `13`), exists in the shared constants package used by
+the service API. It does not appear in the Delivery Core status table that the partner API and
+webhooks read from, so partner integrations will not see it.
+
+### Branch on the slug, not the name
+
+`name` is a display label and may be re-worded. `slug` is the stable key. The v1
+[Get Order Status](/api/partner/order-status) endpoint returns **only** the name — another reason to
+prefer [Track Order](/api/partner/track-order), which returns both.
+
+## Payment type
+
+| Id | Name | Meaning |
+| --- | --- | --- |
+| 1 | Cash on Delivery | The driver collects `total_amount` from the customer. |
+| 2 | Online | Already paid. The driver collects nothing. |
+
+Used as `payment_type` on the partner API and `paymentType` on the service API.
+
+:::note v1 and v2/v3 record payment status differently
+On v2 and v3, an Online order is recorded with payment status **Completed** and nothing due on
+delivery. On [v1](/api/partner/create-order-v1#note-on-payment-status), every order is recorded as
+**Pending** regardless of payment type.
+:::
+
+## Payment status
+
+| Id | Name | Slug |
+| --- | --- | --- |
+| 1 | Pending | `pending` |
+| 2 | Completed | `completed` |
+
+## Order type
+
+| Id | Name | Slug | Meaning |
+| --- | --- | --- | --- |
+| 1 | On-Demand | `on_demand` | Dispatched as soon as a driver is available. |
+| 2 | Scheduled | `scheduled` | Booked for a delivery window. |
+
+On the partner API this is **implicit**: sending a `schedule` block makes the order Scheduled;
+omitting it makes it On-Demand. There is no `order_type` field to set. On the service API it is
+explicit as `orderType`, and `orderType: 2` requires `eta`.
+
+## Order source
+
+| Id | Name |
+| --- | --- |
+| 1 | WMS |
+| 2 | Other |
+
+The service API's `orderSource` field documents the same two ids as `Internal` (1) and
+`Integration` (2). The partner API does not accept this field — your API key determines the source.
+
+## Order collection method
+
+| Id | Name | Slug | Meaning |
+| --- | --- | --- | --- |
+| 1 | Collect | `collect` | The goods are waiting; the driver collects them. |
+| 2 | Buy | `buy` | The driver purchases the goods at the pickup point. |
+
+Sent as `pickup.collection_method` on the partner API (v2 and v3) and `pickUpDetails.collectionMethod`
+on the service API. Defaults to `1` in both.
+
+## Issue status
+
+| Id | Name |
+| --- | --- |
+| 1 | Pending |
+| 2 | In Progress |
+| 3 | Done |
+| 4 | Hold |
+
+## Item categories
+
+String codes, not numeric ids. Used as `category_code` when
+[creating an issued item](/api/operations/issued-items/create-issued-item).
+
+| Code | Category |
+| --- | --- |
+| `HLMT001` | Helmet |
+| `TSRT001` | T-shirt |
+| `PNTS001` | Trousers |
+| `JCKT001` | Jacket |
+| `PHNE001` | Phone |
+| `CASH001` | Cash |
+| `HBG001` | Hot bag |
+
+The authoritative labels come from
+[Item Categories](/api/operations/reference-data#item-categories); the descriptions above are the
+plain-English reading of each code.
+
+## Issued item status
+
+| Value | Meaning |
+| --- | --- |
+| `ACTIVE` | Can be issued to a driver. |
+| `INACTIVE` | Retired. Cannot be issued; existing assignments are unaffected. |
+
+Retiring an item is a `PATCH` to `INACTIVE` — there is no delete endpoint.
+
+## Driver issued item status
+
+| Value | Meaning |
+| --- | --- |
+| `ISSUED` | The driver currently holds the item. |
+| `RESTORED` | The item has been returned. |
+
+The transition is one-way. See
+[Restore Driver Issued Item](/api/operations/driver-issued-items/restore-driver-issued-item).
+
+## Login actions
+
+Returned as `nextAction` by [Driver Login](/api/driver/login).
+
+| Value | Meaning |
+| --- | --- |
+| `LOGIN_SUCCESS` | Tokens issued; the driver is signed in. |
+| `CONFIRM_DEVICE_SWITCH` | An active session exists on another device. Confirm to take it over. |
+
+## Supplier sort order
+
+Accepted values for `sortBy` on [List Suppliers](/api/operations/suppliers/list-suppliers).
+
+| Value | Order |
+| --- | --- |
+| `supplier_name` | Name, ascending |
+| `-supplier_name` | Name, descending |
+| `id` | Id, ascending |
+| `-id` | Id, descending |

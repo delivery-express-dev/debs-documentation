@@ -1,0 +1,254 @@
+---
+id: create-order
+title: Create Order (Service)
+sidebar_label: Create Order
+sidebar_position: 2
+description: Create a single order on behalf of an integration through the Allow MENA internal service API, with duplicate protection by integration order id.
+---
+
+# Create Order (Service)
+
+<Endpoint method="POST" path="/api/v1/internal/orders" auth="X-API-Key header" />
+
+Creates one order on behalf of an integration. Unlike the partner API this takes a single order, not
+a batch, and names the fulfilling branch explicitly.
+
+It is **safe to retry**: `integrationOrderId` is unique per order, and a repeat submission returns
+`409` carrying the id of the order that already exists — so a caller that lost its response can
+recover the order id instead of creating a duplicate.
+
+## Request body
+
+<ParamTable
+  params={[
+    { name: 'orderSource', type: 'integer', required: true, values: ['1', '2'], description: <><code>1</code> — Internal. <code>2</code> — Integration.</>, example: '2' },
+    { name: 'orderType', type: 'integer', required: true, values: ['1', '2'], description: <><code>1</code> — On-Demand. <code>2</code> — Scheduled, which requires <code>eta</code>.</>, example: '1' },
+    { name: 'supplierBranchId', type: 'integer', required: true, description: 'The branch fulfilling the order.', example: '7' },
+    { name: 'amount', type: 'decimal', required: true, description: 'Order total. Must be zero or greater.', example: '"12.500"' },
+    { name: 'paymentType', type: 'integer', required: true, values: ['1', '2'], description: <><code>1</code> — Cash on Delivery. <code>2</code> — Online.</>, example: '1' },
+    { name: 'referenceId', type: 'string', required: true, description: "The caller's own identifier for the order.", example: '"SHOP-1001"' },
+    { name: 'integrationOrderId', type: 'string (uuid)', required: true, description: 'Stable id the originating integration knows the order by. Unique — a repeat returns 409. This is what makes the endpoint retry-safe.', example: '"11111111-2222-3333-4444-555555555555"' },
+    { name: 'customerDetails', type: 'object', required: true, description: 'Who the order is delivered to.' },
+    { name: 'dropOffDetails', type: 'object', required: true, description: 'Where the order is delivered. Must carry either coordinates or an address naming at least an area.' },
+    { name: 'pickUpDetails', type: 'object', required: false, description: "Where the order is collected from. Omit to use the supplier branch's own location." },
+    { name: 'eta', type: 'string (date-time)', required: false, description: <>When a scheduled order is due. <strong>Required when <code>orderType</code> is <code>2</code></strong>; rejected as a validation error otherwise.</>, example: '"2026-11-01T15:00:00Z"' },
+  ]}
+/>
+
+### customerDetails
+
+<ParamTable
+  params={[
+    { name: 'firstName', type: 'string', required: true, description: 'Customer first name.', example: '"Sara"' },
+    { name: 'lastName', type: 'string', required: false, description: 'Customer last name.', example: '"Al-Ali"' },
+    { name: 'customerMobile', type: 'string', required: false, description: 'Contact number for the delivery.' },
+    { name: 'customerEmail', type: 'string', required: false, description: 'Contact email for the delivery.' },
+  ]}
+/>
+
+### dropOffDetails
+
+<ParamTable
+  params={[
+    { name: 'location', type: 'object', required: false, description: 'Coordinates of the drop-off point. Required unless address.area is given.' },
+    { name: 'location.latitude', type: 'number', required: true, description: 'Decimal degrees, between -90 and 90.', example: '29.3759' },
+    { name: 'location.longitude', type: 'number', required: true, description: 'Decimal degrees, between -180 and 180.', example: '47.9774' },
+    { name: 'address', type: 'object', required: false, description: <>Street address. See <a href="#address-object">Address object</a>. Required — with at least <code>area</code> — when <code>location</code> is omitted.</> },
+  ]}
+/>
+
+### pickUpDetails
+
+<ParamTable
+  params={[
+    { name: 'location', type: 'object', required: false, description: 'Coordinates of the pick-up point. Same shape as dropOffDetails.location.' },
+    { name: 'name', type: 'string', required: false, description: 'Name of the pick-up contact.' },
+    { name: 'mobile', type: 'string', required: false, description: 'Contact number for the pick-up.' },
+    { name: 'address', type: 'object', required: false, description: 'Street address of the pick-up.' },
+    { name: 'collectionMethod', type: 'integer', required: false, default: '1', values: ['1', '2'], description: <><code>1</code> — Collect. <code>2</code> — Buy: the driver purchases the goods.</> },
+  ]}
+/>
+
+### Address object
+
+Every field is optional — an address can be as little as an area name.
+
+<ParamTable
+  params={[
+    { name: 'area', type: 'string', required: false, description: 'Area name. The one field that makes an address sufficient on its own for a drop-off.' },
+    { name: 'block', type: 'string', required: false, description: 'Block name.' },
+    { name: 'street', type: 'string', required: false, description: 'Street name.' },
+    { name: 'avenue', type: 'string', required: false, description: 'Avenue name.' },
+    { name: 'building', type: 'string', required: false, description: 'Building name.' },
+    { name: 'floor', type: 'string', required: false, description: 'Floor.' },
+    { name: 'flat', type: 'string', required: false, description: 'Flat name.' },
+    { name: 'houseNumber', type: 'string', required: false, description: 'House number.' },
+    { name: 'landmark', type: 'string', required: false, description: 'Landmark.' },
+    { name: 'address1', type: 'string', required: false, description: 'First line of the address.' },
+    { name: 'address2', type: 'string', required: false, description: 'Second line of the address.' },
+    { name: 'zipCode', type: 'string', required: false, description: 'Postal code.' },
+  ]}
+/>
+
+:::note Unknown fields are rejected
+The request schema forbids extra properties. A misspelled key fails with `422`, naming the offending
+field — it is not silently ignored.
+:::
+
+## Request example
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="cURL">
+
+```bash
+curl --request POST \
+  --url 'https://sandboxapi.allowmena.com/api/v1/internal/orders' \
+  --header 'X-API-Key: YOUR_SERVICE_KEY' \
+  --header 'X-Correlation-ID: 11111111-2222-3333-4444-555555555555' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "orderSource": 2,
+    "orderType": 1,
+    "supplierBranchId": 7,
+    "amount": "12.500",
+    "paymentType": 1,
+    "referenceId": "SHOP-1001",
+    "integrationOrderId": "11111111-2222-3333-4444-555555555555",
+    "customerDetails": { "firstName": "Sara", "lastName": "Al-Ali" },
+    "dropOffDetails": { "location": { "latitude": 29.3759, "longitude": 47.9774 } }
+  }'
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+import os
+import uuid
+import requests
+
+integration_order_id = str(uuid.uuid4())
+
+response = requests.post(
+    "https://sandboxapi.allowmena.com/api/v1/internal/orders",
+    headers={
+        "X-API-Key": os.environ["ALLOW_SERVICE_KEY"],
+        "X-Correlation-ID": str(uuid.uuid4()),
+        "Content-Type": "application/json",
+    },
+    json={
+        "orderSource": 2,
+        "orderType": 1,
+        "supplierBranchId": 7,
+        "amount": "12.500",
+        "paymentType": 1,
+        "referenceId": "SHOP-1001",
+        "integrationOrderId": integration_order_id,
+        "customerDetails": {"firstName": "Sara", "lastName": "Al-Ali"},
+        "dropOffDetails": {"location": {"latitude": 29.3759, "longitude": 47.9774}},
+    },
+    timeout=30,
+)
+
+if response.status_code == 409:
+    # Already created by an earlier attempt — recover the id instead of retrying.
+    order_id = response.json()["detail"]["orderId"]
+else:
+    response.raise_for_status()
+    order_id = response.json()["data"]["orderId"]
+
+print(order_id)
+```
+
+</TabItem>
+<TabItem value="js" label="JavaScript">
+
+```javascript
+const integrationOrderId = crypto.randomUUID();
+
+const response = await fetch('https://sandboxapi.allowmena.com/api/v1/internal/orders', {
+  method: 'POST',
+  headers: {
+    'X-API-Key': process.env.ALLOW_SERVICE_KEY,
+    'X-Correlation-ID': crypto.randomUUID(),
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    orderSource: 2,
+    orderType: 1,
+    supplierBranchId: 7,
+    amount: '12.500',
+    paymentType: 1,
+    referenceId: 'SHOP-1001',
+    integrationOrderId,
+    customerDetails: { firstName: 'Sara', lastName: 'Al-Ali' },
+    dropOffDetails: { location: { latitude: 29.3759, longitude: 47.9774 } },
+  }),
+});
+
+const body = await response.json();
+
+// Already created by an earlier attempt — recover the id instead of retrying.
+const orderId = response.status === 409 ? body.detail.orderId : body.data.orderId;
+console.log(orderId);
+```
+
+</TabItem>
+</Tabs>
+
+## Response
+
+`200 OK`
+
+```json
+{
+  "status": true,
+  "status_code": 200,
+  "message": "Order created successfully.",
+  "data": {
+    "orderId": 19444,
+    "integrationOrderId": "11111111-2222-3333-4444-555555555555"
+  }
+}
+```
+
+<ParamTable
+  title="data fields"
+  params={[
+    { name: 'orderId', type: 'integer', required: true, description: 'The platform order id.' },
+    { name: 'integrationOrderId', type: 'string (uuid)', required: true, description: 'Echoes the integration order id you sent.' },
+  ]}
+/>
+
+## Errors
+
+<ErrorTable
+  errors={[
+    { status: 400, code: 'BAD_REQUEST', when: <><code>Drop-off requires either coordinates or an address with an area.</code></> },
+    { status: 400, code: 'BAD_REQUEST', when: <><code>Drop-off coordinates do not fall within any serviced area.</code></> },
+    { status: 401, code: 'API_KEY_MISSING', when: <>No <code>X-API-Key</code> header.</> },
+    { status: 401, code: 'INVALID_API_KEY', when: <>The key does not match the configured service key.</> },
+    { status: 404, code: 'NOT_FOUND', when: <>No supplier branch with the given <code>supplierBranchId</code>.</> },
+    { status: 409, code: 'CONFLICT', when: <>An order already exists for this <code>integrationOrderId</code>. <code>detail</code> carries <code>orderId</code> and <code>integrationOrderId</code> — use it to recover.</> },
+    { status: 422, code: 'VALIDATION_ERROR', when: <>The body failed schema validation: a missing required field, an unknown field, an out-of-range coordinate, a negative <code>amount</code>, or <code>orderType: 2</code> without <code>eta</code>.</> },
+    { status: 500, code: 'INTERNAL_SERVER_ERROR', when: <>Unhandled server error.</> },
+  ]}
+/>
+
+### Recovering from a 409
+
+```json
+{
+  "status": false,
+  "status_code": 409,
+  "error_code": "CONFLICT",
+  "message": "An order already exists for this integrationOrderId.",
+  "detail": {
+    "orderId": 19444,
+    "integrationOrderId": "11111111-2222-3333-4444-555555555555"
+  }
+}
+```
+
+Read `detail.orderId` and carry on — the order exists and is live. Do not generate a new
+`integrationOrderId` and retry, which would create a genuine duplicate.

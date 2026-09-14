@@ -1,0 +1,204 @@
+---
+id: login
+title: Driver Login
+sidebar_label: Login
+sidebar_position: 2
+description: Authenticate a driver with email and password, receiving either tokens or a device-switch confirmation token.
+---
+
+# Driver Login
+
+<Endpoint method="POST" path="/api/v1/driver/auth/login" publicAccess />
+
+Verifies a driver's credentials and starts a session. There are **two possible successful outcomes**,
+distinguished by `data.nextAction`:
+
+- **`LOGIN_SUCCESS`** — no session existed, or the existing one was on the same app install. Tokens
+  are returned and the driver is signed in.
+- **`CONFIRM_DEVICE_SWITCH`** — the driver has an active session on a *different* device. Nothing is
+  changed. A confirmation token is returned, and the app must call
+  [Confirm Login](/api/driver/confirm-login) to take over the session.
+
+Both outcomes are `200 OK`. Branch on `nextAction`, not on the status code.
+
+## Request body
+
+<ParamTable
+  params={[
+    { name: 'email', type: 'string (email)', required: true, description: "The driver's registered email address.", example: '"driver@example.com"' },
+    { name: 'password', type: 'string', required: true, description: 'The plaintext password. Sent over HTTPS only.' },
+    { name: 'appId', type: 'string', required: true, description: 'Identifier of the app install. This is what distinguishes "same device" from "device switch" — the same appId re-logging in never triggers a confirmation.', example: '"com.example.driver.android"' },
+    { name: 'playerId', type: 'string', required: true, description: 'Push-notification player id for this install.', example: '"onesignal-abc123"' },
+    { name: 'device_info', type: 'object', required: true, description: 'Hardware and OS details of the device. Note that this field is snake_case while its siblings are camelCase.' },
+    { name: 'device_info.name', type: 'string', required: true, description: 'Device name.', example: '"Pixel 7"' },
+    { name: 'device_info.os', type: 'string', required: true, description: 'Operating system.', example: '"Android"' },
+    { name: 'device_info.osVersion', type: 'string', required: true, description: 'Operating system version.', example: '"14"' },
+    { name: 'device_info.manufacturer', type: 'string', required: true, description: 'Device manufacturer.', example: '"Google"' },
+    { name: 'device_info.model', type: 'string', required: true, description: 'Device model.', example: '"Pixel 7"' },
+    { name: 'location', type: 'object', required: true, description: "The driver's location at sign-in." },
+    { name: 'location.latitude', type: 'number', required: true, description: 'Decimal degrees.', example: '29.3759' },
+    { name: 'location.longitude', type: 'number', required: true, description: 'Decimal degrees.', example: '47.9774' },
+  ]}
+/>
+
+## Request example
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="cURL">
+
+```bash
+curl --request POST \
+  --url 'https://sandboxapi.allowmena.com/api/v1/driver/auth/login' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "email": "driver@example.com",
+    "password": "YOUR_PASSWORD",
+    "appId": "com.example.driver.android",
+    "playerId": "onesignal-abc123",
+    "device_info": {
+      "name": "Pixel 7",
+      "os": "Android",
+      "osVersion": "14",
+      "manufacturer": "Google",
+      "model": "Pixel 7"
+    },
+    "location": { "latitude": 29.3759, "longitude": 47.9774 }
+  }'
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+import requests
+
+response = requests.post(
+    "https://sandboxapi.allowmena.com/api/v1/driver/auth/login",
+    json={
+        "email": "driver@example.com",
+        "password": "YOUR_PASSWORD",
+        "appId": "com.example.driver.android",
+        "playerId": "onesignal-abc123",
+        "device_info": {
+            "name": "Pixel 7",
+            "os": "Android",
+            "osVersion": "14",
+            "manufacturer": "Google",
+            "model": "Pixel 7",
+        },
+        "location": {"latitude": 29.3759, "longitude": 47.9774},
+    },
+    timeout=30,
+)
+response.raise_for_status()
+
+data = response.json()["data"]
+if data["nextAction"] == "CONFIRM_DEVICE_SWITCH":
+    # Ask the driver, then post the token to /confirm-login within 2 minutes.
+    print("already signed in on", data["existingDevice"]["name"])
+else:
+    access_token = data["tokens"]["accessToken"]
+```
+
+</TabItem>
+<TabItem value="js" label="JavaScript">
+
+```javascript
+const response = await fetch('https://sandboxapi.allowmena.com/api/v1/driver/auth/login', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    email: 'driver@example.com',
+    password: 'YOUR_PASSWORD',
+    appId: 'com.example.driver.android',
+    playerId: 'onesignal-abc123',
+    device_info: {
+      name: 'Pixel 7',
+      os: 'Android',
+      osVersion: '14',
+      manufacturer: 'Google',
+      model: 'Pixel 7',
+    },
+    location: { latitude: 29.3759, longitude: 47.9774 },
+  }),
+});
+
+const { data } = await response.json();
+if (data.nextAction === 'CONFIRM_DEVICE_SWITCH') {
+  // Ask the driver, then post the token to /confirm-login within 2 minutes.
+  console.log('already signed in on', data.existingDevice.name);
+} else {
+  const accessToken = data.tokens.accessToken;
+}
+```
+
+</TabItem>
+</Tabs>
+
+## Responses
+
+```json title="200 — LOGIN_SUCCESS"
+{
+  "status": true,
+  "status_code": 200,
+  "message": "Success",
+  "data": {
+    "nextAction": "LOGIN_SUCCESS",
+    "confirmationToken": null,
+    "existingDevice": null,
+    "tokens": {
+      "accessToken": "eyJhbGciOiJIUzI1NiIs...",
+      "refreshToken": "eyJhbGciOiJIUzI1NiIs..."
+    },
+    "driverInfo": { "id": 42 }
+  }
+}
+```
+
+```json title="200 — CONFIRM_DEVICE_SWITCH"
+{
+  "status": true,
+  "status_code": 200,
+  "message": "Success",
+  "data": {
+    "nextAction": "CONFIRM_DEVICE_SWITCH",
+    "confirmationToken": "8f3c2a2c-8e2f-4b7c-9f2f-6a2b8c1e2d3f",
+    "existingDevice": { "name": "iPhone 14", "model": "iPhone 14 Pro" },
+    "tokens": null,
+    "driverInfo": { "id": 42 }
+  }
+}
+```
+
+<ParamTable
+  title="data fields"
+  params={[
+    { name: 'nextAction', type: 'string', required: true, values: ['LOGIN_SUCCESS', 'CONFIRM_DEVICE_SWITCH'], description: 'Which outcome this is. Branch on it.' },
+    { name: 'confirmationToken', type: 'string (uuid) | null', required: false, description: 'Present only on CONFIRM_DEVICE_SWITCH. Single-use, and valid for 2 minutes.' },
+    { name: 'existingDevice', type: 'object | null', required: false, description: 'Present only on CONFIRM_DEVICE_SWITCH — the device currently signed in, so the driver can recognise it.' },
+    { name: 'existingDevice.name', type: 'string', required: false, description: 'Device name.' },
+    { name: 'existingDevice.model', type: 'string', required: false, description: 'Device model.' },
+    { name: 'tokens', type: 'object | null', required: false, description: 'Present only on LOGIN_SUCCESS.' },
+    { name: 'tokens.accessToken', type: 'string', required: false, description: 'Access JWT, valid 1 hour.' },
+    { name: 'tokens.refreshToken', type: 'string', required: false, description: 'Refresh JWT, valid 24 hours.' },
+    { name: 'driverInfo', type: 'object | null', required: false, description: 'Returned on both outcomes.' },
+    { name: 'driverInfo.id', type: 'integer', required: false, description: 'The driver id.' },
+  ]}
+/>
+
+:::caution The confirmation token expires in 2 minutes
+It is also **single-use** — consumed atomically, so two concurrent confirmations with the same token
+cannot both succeed. If the driver takes too long, start again from `/login`.
+:::
+
+## Errors
+
+<ErrorTable
+  errors={[
+    { status: 401, code: 'INVALID_CREDENTIALS', when: <>The email is not registered, or the password does not match. The two cases are deliberately indistinguishable.</> },
+    { status: 401, code: 'INVALID_TOKEN', when: <>The driver record disappeared between credential check and session creation.</> },
+    { status: 403, code: 'FORBIDDEN', when: <>The driver account is inactive or disabled.</> },
+    { status: 422, code: 'VALIDATION_ERROR', when: <>A required field is missing, or <code>email</code> is not a valid address.</> },
+    { status: 500, code: 'INTERNAL_SERVER_ERROR', when: <>Unhandled server error.</> },
+  ]}
+/>

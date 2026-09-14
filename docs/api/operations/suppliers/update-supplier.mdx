@@ -1,0 +1,161 @@
+---
+id: update-supplier
+title: Update Supplier
+sidebar_label: Update Supplier
+sidebar_position: 4
+description: Partially update an Allow MENA supplier and its owning user account.
+---
+
+# Update Supplier
+
+<Endpoint
+  method="PUT"
+  path="/api/v1/web-app/suppliers/{supplier_id}"
+  auth="Bearer token"
+  permission="update-supplier"
+/>
+
+Updates a supplier and its owning user account. Despite being a `PUT`, this is a **partial update**:
+only the fields present in the payload are applied, and omitted fields are left untouched.
+
+:::caution `PUT` here does not replace the resource
+Sending `{"status": false}` disables the supplier and changes nothing else. It does **not** clear the
+name, logo or business types. If you are used to `PUT` meaning full replacement, this endpoint does
+not behave that way.
+:::
+
+## Path parameters
+
+<ParamTable
+  params={[
+    { name: 'supplier_id', type: 'integer', required: true, description: 'The supplier to update.', example: '12' },
+  ]}
+/>
+
+## Request body
+
+Every field is optional. Send only what you are changing.
+
+<ParamTable
+  params={[
+    { name: 'supplierName', type: 'string', required: false, description: 'New supplier name.' },
+    { name: 'firstName', type: 'string', required: false, description: "Owning user's first name." },
+    { name: 'lastName', type: 'string', required: false, description: "Owning user's last name." },
+    { name: 'contactPerson', type: 'string', required: false, description: 'Named contact at the supplier.' },
+    { name: 'mobile', type: 'string', required: false, description: 'Mobile number. Must be exactly 8 digits.' },
+    { name: 'preferredLanguage', type: 'integer', required: false, description: 'Language id for the owning user account.' },
+    { name: 'businessTypes', type: 'array<integer>', required: false, description: 'Replaces the assigned business types with this set.' },
+    { name: 'logoId', type: 'integer', required: false, description: 'Id of an uploaded logo file. Only re-verified when it changes.' },
+    { name: 'status', type: 'boolean', required: false, description: 'Whether the supplier is active.' },
+    { name: 'password', type: 'string', required: false, description: <>New password for the owning user. If present, <code>confirmPassword</code> must match.</> },
+    { name: 'confirmPassword', type: 'string', required: false, description: <>Must equal <code>password</code> when a password is being changed.</> },
+  ]}
+/>
+
+Email and country cannot be changed through this endpoint.
+
+## Request example
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="cURL">
+
+```bash
+curl --request PUT \
+  --url 'https://sandboxapi.allowmena.com/api/v1/web-app/suppliers/12' \
+  --header 'Authorization: Bearer YOUR_TOKEN' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "contactPerson": "Layla Ahmed",
+    "mobile": "55998877",
+    "status": true
+  }'
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+import os
+import requests
+
+# Only the keys you send are applied — everything else is left alone.
+response = requests.put(
+    "https://sandboxapi.allowmena.com/api/v1/web-app/suppliers/12",
+    headers={
+        "Authorization": f"Bearer {os.environ['ALLOW_TOKEN']}",
+        "Content-Type": "application/json",
+    },
+    json={"contactPerson": "Layla Ahmed", "mobile": "55998877", "status": True},
+    timeout=30,
+)
+response.raise_for_status()
+
+print(response.json()["data"]["contactPerson"])
+```
+
+</TabItem>
+<TabItem value="js" label="JavaScript">
+
+```javascript
+// Only the keys you send are applied — everything else is left alone.
+const response = await fetch('https://sandboxapi.allowmena.com/api/v1/web-app/suppliers/12', {
+  method: 'PUT',
+  headers: {
+    Authorization: `Bearer ${process.env.ALLOW_TOKEN}`,
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({ contactPerson: 'Layla Ahmed', mobile: '55998877', status: true }),
+});
+
+const body = await response.json();
+console.log(body.data.contactPerson);
+```
+
+</TabItem>
+</Tabs>
+
+## Response
+
+`200 OK` — the updated supplier, same shape as
+[Get Supplier](/api/operations/suppliers/get-supplier).
+
+```json
+{
+  "status": true,
+  "status_code": 200,
+  "message": "Supplier updated successfully.",
+  "data": {
+    "id": 12,
+    "supplierName": "Bright Foods",
+    "contactPerson": "Layla Ahmed",
+    "logo": "https://files.allowmena.com/logo/supplier/bright-foods.png",
+    "status": true,
+    "countryDetails": { "id": 1, "name": "Kuwait", "code": 965 },
+    "businessTypeDetails": [{ "id": 3, "name": "Restaurant" }],
+    "userDetails": {
+      "id": 88,
+      "firstName": "Noor",
+      "lastName": "Hassan",
+      "fullName": "Noor Hassan",
+      "email": "noor@brightfoods.example",
+      "mobile": "55998877",
+      "roleDetails": { "id": 4, "name": "Supplier Admin", "slug": "supplier_admin" },
+      "preferredLanguage": { "id": 1, "label": "English", "code": "en" }
+    }
+  }
+}
+```
+
+## Errors
+
+<ErrorTable
+  errors={[
+    { status: 400, code: 'BAD_REQUEST', when: <><code>Passwords do not match</code> — a password was sent without a matching <code>confirmPassword</code>.</> },
+    { status: 400, code: 'BAD_REQUEST', when: <><code>Mobile number must be exactly 8 digits</code>.</> },
+    { status: 401, code: 'TOKEN_MISSING', when: <>No <code>Authorization</code> header.</> },
+    { status: 403, code: 'FORBIDDEN', when: <>The token lacks <code>update-supplier</code>.</> },
+    { status: 404, code: 'NOT_FOUND', when: <><code>Supplier not found</code> — no supplier with that id.</> },
+    { status: 422, code: 'VALIDATION_ERROR', when: <>A field has the wrong type, or an unknown field was sent.</> },
+    { status: 500, code: 'INTERNAL_SERVER_ERROR', when: <>Unhandled server error.</> },
+  ]}
+/>

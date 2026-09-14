@@ -1,0 +1,147 @@
+---
+id: resolve-location
+title: Resolve Location
+sidebar_label: Resolve Location
+sidebar_position: 8
+description: Resolve a latitude and longitude to the Allow MENA area and block whose boundary contains it.
+---
+
+# Resolve Location
+
+<Endpoint
+  method="GET"
+  path="/api/v1/web-app/locations/resolve"
+  auth="Bearer token"
+  permission="create-order"
+/>
+
+Given a coordinate pair, returns the **area** and — where one exists — the **block** whose spatial
+boundary contains that point.
+
+Use it when an operator drops a pin on a map and you need to fill in the area and block fields, or to
+check that a destination is inside the service footprint before creating an order.
+
+## Query parameters
+
+<ParamTable
+  params={[
+    { name: 'latitude', type: 'number', required: true, description: 'Latitude of the point, in decimal degrees.', example: '29.3759' },
+    { name: 'longitude', type: 'number', required: true, description: 'Longitude of the point, in decimal degrees.', example: '47.9774' },
+  ]}
+/>
+
+## Request example
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="cURL">
+
+```bash
+curl --request GET \
+  --url 'https://sandboxapi.allowmena.com/api/v1/web-app/locations/resolve?latitude=29.3759&longitude=47.9774' \
+  --header 'Authorization: Bearer YOUR_TOKEN'
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+import os
+import requests
+
+response = requests.get(
+    "https://sandboxapi.allowmena.com/api/v1/web-app/locations/resolve",
+    headers={"Authorization": f"Bearer {os.environ['ALLOW_TOKEN']}"},
+    params={"latitude": 29.3759, "longitude": 47.9774},
+    timeout=30,
+)
+
+# 404 means the point is outside every serviced area.
+if response.status_code == 404:
+    print("not serviceable")
+else:
+    response.raise_for_status()
+    location = response.json()["data"]
+    print(location["area_name"], location.get("block_name"))
+```
+
+</TabItem>
+<TabItem value="js" label="JavaScript">
+
+```javascript
+const url = new URL('https://sandboxapi.allowmena.com/api/v1/web-app/locations/resolve');
+url.searchParams.set('latitude', '29.3759');
+url.searchParams.set('longitude', '47.9774');
+
+const response = await fetch(url, {
+  headers: { Authorization: `Bearer ${process.env.ALLOW_TOKEN}` },
+});
+
+// 404 means the point is outside every serviced area.
+if (response.status === 404) {
+  console.log('not serviceable');
+} else {
+  const location = (await response.json()).data;
+  console.log(location.area_name, location.block_name);
+}
+```
+
+</TabItem>
+</Tabs>
+
+## Response
+
+`200 OK`
+
+```json title="Area and block both resolved"
+{
+  "status": true,
+  "status_code": 200,
+  "message": "Location details fetched successfully",
+  "data": {
+    "area_id": 14,
+    "area_name": "Jabriya",
+    "block_id": 92,
+    "block_name": "Block 1"
+  }
+}
+```
+
+```json title="Area resolved, no block covers the point"
+{
+  "status": true,
+  "status_code": 200,
+  "message": "Location details fetched successfully",
+  "data": {
+    "area_id": 14,
+    "area_name": "Jabriya"
+  }
+}
+```
+
+<ParamTable
+  title="data fields"
+  params={[
+    { name: 'area_id', type: 'integer', required: true, description: 'Id of the area containing the point.' },
+    { name: 'area_name', type: 'string', required: true, description: 'Name of the area.' },
+    { name: 'block_id', type: 'integer | null', required: false, description: 'Id of the block containing the point. Omitted when no block matches.' },
+    { name: 'block_name', type: 'string | null', required: false, description: 'Name of the block. Omitted when no block matches.' },
+  ]}
+/>
+
+:::note Area is mandatory, block is best-effort
+Area resolution must succeed — a point outside every area boundary returns `404`. Block resolution is
+optional: blocks do not cover every serviced area, and the block fields are simply absent when none
+matches. Treat a missing block as normal, not as an error.
+:::
+
+## Errors
+
+<ErrorTable
+  errors={[
+    { status: 401, code: 'TOKEN_MISSING', when: <>No <code>Authorization</code> header.</> },
+    { status: 403, code: 'FORBIDDEN', when: <>The token lacks <code>create-order</code>.</> },
+    { status: 404, code: 'NOT_FOUND', when: <><code>Area not found for given location</code> — the point falls outside every configured area boundary.</> },
+    { status: 422, code: 'VALIDATION_ERROR', when: <>A coordinate is missing or is not a number.</> },
+    { status: 500, code: 'INTERNAL_SERVER_ERROR', when: <>Unhandled server error.</> },
+  ]}
+/>

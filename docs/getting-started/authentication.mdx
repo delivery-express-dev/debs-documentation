@@ -1,0 +1,153 @@
+---
+id: authentication
+title: Authentication
+sidebar_label: Authentication
+sidebar_position: 3
+description: The three credential types used by the Allow MENA Delivery API — partner x-api-key, service API key, and driver bearer tokens — and the errors each returns.
+---
+
+# Authentication
+
+The platform uses three different credentials. Which one you send is decided entirely by the path
+prefix you call.
+
+| Credential | Header | Used by |
+| --- | --- | --- |
+| Partner API key | `x-api-key: YOUR_API_KEY` | `/api/v{1,2,3}/external/**` |
+| Service API key | `X-API-Key: YOUR_SERVICE_KEY` | `/api/v1/internal/**` |
+| Bearer JWT | `Authorization: Bearer YOUR_TOKEN` | `/api/v1/web-app/**`, `/api/v1/driver/**` |
+
+:::danger Never commit credentials
+Every example on this site uses the placeholders `YOUR_API_KEY`, `YOUR_SERVICE_KEY` and
+`YOUR_TOKEN`. Keep real keys in environment variables or a secret manager, and send them only over
+HTTPS.
+:::
+
+## Partner API key
+
+Integration partners authenticate with a static key issued by Allow MENA, sent on every request:
+
+```bash
+curl --request POST \
+  --url 'https://sandboxapi.allowmena.com/api/v3/external/orders' \
+  --header 'x-api-key: YOUR_API_KEY' \
+  --header 'Content-Type: application/json' \
+  --data '{"orders": []}'
+```
+
+The key is more than a password — it **identifies your branch**. Each key is bound server-side to
+exactly one supplier branch and one order source. That is why the create-order request body carries
+no supplier or branch field: the platform derives both from your key. Two branches means two keys.
+
+A key has a lifecycle. It can be **revoked** (an explicit administrative action) or **expire** (it
+carries an expiry date). Both conditions are checked on every request.
+
+### Errors
+
+<ErrorTable
+  errors={[
+    { status: 401, when: <>No <code>x-api-key</code> header was sent, the key is not recognised, or it has been revoked. Body: <code>{'{"status": false, "message": "UnAuthorized"}'}</code></> },
+    { status: 401, when: <>The key is recognised but its expiry date has passed. Body: <code>{'{"status": false, "message": "Access Key Expired"}'}</code></> },
+    { status: 500, when: <>The key could not be resolved to a branch — for example the branch behind it was removed. Body: <code>{'{"status": false, "message": "Something went wrong"}'}</code></> },
+  ]}
+/>
+
+Authentication failures are returned by middleware before your request reaches any endpoint, so
+these bodies are the same for every partner endpoint and are not repeated on each endpoint page.
+
+## Service API key
+
+Endpoints under `/api/v1/internal` are for service-to-service calls inside the Allow MENA platform.
+They use a single shared key, sent as `X-API-Key`, and additionally require a correlation id for
+tracing:
+
+```bash
+curl --request POST \
+  --url 'https://sandboxapi.allowmena.com/api/v1/internal/orders' \
+  --header 'X-API-Key: YOUR_SERVICE_KEY' \
+  --header 'X-Correlation-ID: 11111111-2222-3333-4444-555555555555' \
+  --header 'Content-Type: application/json' \
+  --data '{ }'
+```
+
+Failures use the [structured error envelope](/getting-started/errors#structured-envelope):
+
+<ErrorTable
+  errors={[
+    { status: 401, code: 'API_KEY_MISSING', when: <>No <code>X-API-Key</code> header. Message: <code>X-API-Key header is required</code>.</> },
+    { status: 401, code: 'INVALID_API_KEY', when: <>The header was sent but does not match the configured service key.</> },
+  ]}
+/>
+
+## Bearer tokens
+
+The operations portal (`/api/v1/web-app`) and the driver app (`/api/v1/driver`) authenticate with a
+JWT access token:
+
+```bash
+curl --request GET \
+  --url 'https://sandboxapi.allowmena.com/api/v1/web-app/suppliers' \
+  --header 'Authorization: Bearer YOUR_TOKEN'
+```
+
+Tokens are HS256-signed. A bare token without the `Bearer ` prefix is also accepted, for backwards
+compatibility with older clients — but send the prefix.
+
+### Token claims
+
+An access token carries the caller's identity and their granted feature codes:
+
+```json title="Portal user token payload"
+{
+  "id": 7,
+  "user_type": 1,
+  "features": ["read-supplier", "update-supplier"],
+  "exp": 1721476800,
+  "iat": 1721473200
+}
+```
+
+```json title="Driver token payload"
+{
+  "id": 1,
+  "user_type": 2,
+  "driver_id": 42,
+  "session_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "company_id": null,
+  "exp": 1721476800,
+  "iat": 1721473200
+}
+```
+
+The `features` claim drives authorisation on every operations endpoint — see
+[Permissions](/concepts/permissions). The user whose `id` is `1` is treated as the super admin and
+bypasses every feature check.
+
+### Getting a driver token
+
+Driver tokens come from the [driver login flow](/api/driver/login), which is session-backed: the
+token is only honoured while its `session_id` row is still `ACTIVE`, so a logout immediately
+invalidates tokens that have not yet expired.
+
+| Token | Default lifetime |
+| --- | --- |
+| Access token | 1 hour (`DRIVER_ACCESS_TOKEN_TTL`) |
+| Refresh token | 24 hours (`REFRESH_TOKEN_TTL`) |
+| Session | 24 hours, sliding (`SESSION_TTL`) |
+
+:::note Portal tokens
+Tokens for `/api/v1/web-app` are issued by the operations portal's own login, which lives in the
+legacy Django service and is outside the scope of this documentation set. The endpoints here
+document what they require of a token, not how to obtain one.
+:::
+
+### Errors
+
+<ErrorTable
+  errors={[
+    { status: 401, code: 'TOKEN_MISSING', when: <>No <code>Authorization</code> header was sent.</> },
+    { status: 401, code: 'TOKEN_EXPIRED', when: <>The token's <code>exp</code> has passed. Refresh it.</> },
+    { status: 401, code: 'INVALID_TOKEN', when: <>Bad signature, a missing claim, or — for drivers — a session that is no longer active.</> },
+    { status: 403, code: 'FORBIDDEN', when: <>The token is valid but the caller lacks the feature code the endpoint requires, or the driver account is disabled.</> },
+  ]}
+/>

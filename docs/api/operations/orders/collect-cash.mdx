@@ -1,0 +1,141 @@
+---
+id: collect-cash
+title: Confirm Cash Collection
+sidebar_label: Collect Cash
+sidebar_position: 1
+description: Confirm that a supplier has received the cash-on-delivery money from an Allow MENA driver, settling the driver's wallet.
+---
+
+# Confirm Cash Collection
+
+<Endpoint
+  method="POST"
+  path="/api/v1/web-app/orders/{order_id}/collect-cash"
+  auth="Bearer token"
+  permission="create-order_cash_collect"
+/>
+
+Confirms that the supplier has physically received the cash-on-delivery money from the driver for a
+single order.
+
+On success the order is marked cash-collected, and a **Credit** transaction is recorded on the
+driver's wallet to clear the floating-cash liability created when the order was delivered. The
+transaction carries an auto-generated note referencing the order.
+
+To settle several orders at once, use [Confirm Deposit](/api/operations/orders/deposit) instead.
+
+## When it applies
+
+All three must be true, or the call is rejected:
+
+1. The order's payment type is **Cash on Delivery**.
+2. The order status is **Delivered**.
+3. Cash has **not** already been collected for it.
+
+## Path parameters
+
+<ParamTable
+  params={[
+    { name: 'order_id', type: 'integer', required: true, description: 'The order whose cash is being confirmed.', example: '19444' },
+  ]}
+/>
+
+## Request body
+
+<ParamTable
+  params={[
+    { name: 'amount', type: 'decimal', required: true, description: "The amount received. Must equal the order's amount due on delivery exactly — a mismatch is rejected rather than recorded as a partial payment.", example: '"45.500"' },
+    { name: 'driver_id', type: 'integer', required: true, description: "The driver handing over the cash. Must match the order's assigned driver.", example: '7' },
+  ]}
+/>
+
+## Request example
+
+<Tabs groupId="lang">
+<TabItem value="curl" label="cURL">
+
+```bash
+curl --request POST \
+  --url 'https://sandboxapi.allowmena.com/api/v1/web-app/orders/19444/collect-cash' \
+  --header 'Authorization: Bearer YOUR_TOKEN' \
+  --header 'Content-Type: application/json' \
+  --data '{ "amount": "45.500", "driver_id": 7 }'
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python
+import os
+import requests
+
+response = requests.post(
+    "https://sandboxapi.allowmena.com/api/v1/web-app/orders/19444/collect-cash",
+    headers={
+        "Authorization": f"Bearer {os.environ['ALLOW_TOKEN']}",
+        "Content-Type": "application/json",
+    },
+    # The amount must match the order exactly — no partial collection.
+    json={"amount": "45.500", "driver_id": 7},
+    timeout=30,
+)
+response.raise_for_status()
+
+print(response.json()["data"]["order_id"])
+```
+
+</TabItem>
+<TabItem value="js" label="JavaScript">
+
+```javascript
+const response = await fetch(
+  'https://sandboxapi.allowmena.com/api/v1/web-app/orders/19444/collect-cash',
+  {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${process.env.ALLOW_TOKEN}`,
+      'Content-Type': 'application/json',
+    },
+    // The amount must match the order exactly — no partial collection.
+    body: JSON.stringify({ amount: '45.500', driver_id: 7 }),
+  },
+);
+
+console.log((await response.json()).data.order_id);
+```
+
+</TabItem>
+</Tabs>
+
+## Response
+
+`200 OK`
+
+```json
+{
+  "status": true,
+  "status_code": 200,
+  "message": "Cash collected successfully",
+  "data": {
+    "order_id": 19444
+  }
+}
+```
+
+## Errors
+
+<ErrorTable
+  errors={[
+    { status: 400, code: 'INVALID_OPERATION', when: <><code>The provided driver id does not match the order's driver id.</code></> },
+    { status: 400, code: 'INVALID_OPERATION', when: <><code>Cash collection is only applicable for Cash on Delivery orders.</code></> },
+    { status: 400, code: 'INVALID_OPERATION', when: <><code>Cash can only be collected once the order has been delivered.</code></> },
+    { status: 400, code: 'INVALID_OPERATION', when: <><code>The provided amount does not match the order's amount due on delivery.</code></> },
+    { status: 401, code: 'TOKEN_MISSING', when: <>No <code>Authorization</code> header.</> },
+    { status: 403, code: 'FORBIDDEN', when: <>The token lacks <code>create-order_cash_collect</code>.</> },
+    { status: 404, code: 'NOT_FOUND', when: <>No order with that id.</> },
+    { status: 409, code: 'CONFLICT', when: <><code>Cash has already been collected for this order.</code> Safe to treat as already done.</> },
+    { status: 409, code: 'CONFLICT', when: <><code>Unable to collect cash. The driver's wallet balance is inconsistent</code> — the wallet could not be settled safely. Escalate; do not retry blindly.</> },
+    { status: 422, code: 'VALIDATION_ERROR', when: <>A required field is missing, or <code>amount</code> is not a valid decimal.</> },
+    { status: 500, code: 'INTERNAL_SERVER_ERROR', when: <>Unhandled server error.</> },
+  ]}
+/>
