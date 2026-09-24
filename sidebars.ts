@@ -157,7 +157,6 @@ const sidebars: SidebarsConfig = {
     },
 
     'coverage',
-    'changelog',
   ],
 };
 

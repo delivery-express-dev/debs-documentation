@@ -146,7 +146,6 @@ const config: Config = {
         { to: '/api/partner/create-order-v3', label: 'API Reference', position: 'left' },
         { to: '/getting-started/authentication', label: 'Authentication', position: 'left' },
         { to: '/concepts/pagination', label: 'Concepts', position: 'left' },
-        { to: '/changelog', label: 'Changelog', position: 'right' },
       ],
     },
 
